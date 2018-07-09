@@ -1,0 +1,169 @@
+Description: >
+  This templates deploys a linux bastion (ssh endpoint) inside provided VPC
+  with two public subnets. The bastion will have an auto-scaling group.
+  It will also create a log group
+
+Parameters:
+
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+
+    InstanceType:
+        Description: Which Instance Type should be running the bastion
+        Type: String
+        Default: t2.micro
+
+    VPC:
+        Description: Choose which VPC these bastion hosts hould be deployed to
+        Type: AWS::EC2::VPC::Id
+
+    PublicSubnets:
+        Description: Choose which public subnets these bastion hosts hould be deployed to
+        Type: List<AWS::EC2::Subnet::Id>
+
+    SecurityGroup:
+        Description: Select the Security Group to use SSH Access
+        Type: AWS::EC2::SecurityGroup::Id
+
+Mappings:
+
+    # These are the latest ECS optimized AMIs as of Jul 2018:
+    #The current Amazon ECS-optimized AMI (amzn-ami-2018.03.a-amazon-ecs-optimized) consists of:
+    # The latest minimal version of the Amazon Linux AMI
+    # Amazon ECS container agent (1.18.0)
+    # Docker for the latest Amazon ECS container agent (17.12.1-ce)
+    # ecs-init package to run and monitor the Amazon ECS agent (1.18.0-1)
+    #
+    # You can find the latest available on this page of our documentation:
+    # http://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    # (note the AMI identifier is region specific)
+    AWSRegionToAMI:
+        eu-west-3:
+            AMI: ami-ca75c4b7 
+        eu-west-2:
+            AMI: ami-3622cf51
+        eu-west-1:
+            AMI: ami-c91624b0
+        eu-central-1:
+            AMI: ami-10e6c8fb
+
+Resources:
+  BastionMainLogGroup:
+    Type: AWS::Logs::LogGroup
+  
+  SSHMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+        LogGroupName: !Ref BastionMainLogGroup
+        FilterPattern: "ON FROM USER PWD"
+        MetricTransformation:
+          MetricName: SSHCommandCount
+          MetricValue: 1
+          MetricNamespace: !Join ["/", "BastionHosts", !Ref AWS::StackName]
+
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+              - "ec2.amazonaws.com"
+          Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: bastion-s3-access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+                Effect: Allow
+                Action: 
+                  - s3:GetObject
+                # Resource: !Ref S3BucketArn
+                Resource: *
+        - PolicyName: bastion-log-access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:GetLogEvents
+                  - logs:PutLogEvents   
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutRetentionPolicy
+                  - logs:PutMetricFilter
+                  - logs:CreateLogGroup
+                Resource: !Join ["", "arn:aws:", !Ref AWS::Region, ":", !Ref AWS::AccountId, ":log-group:", !Ref BastionMainLogGroup, ":*"]
+        - PolicyName: bastion-eip-access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+                Effect: Allow
+                Action: 
+                  - ec2:AssociateAddress
+                  - ec2:DescribeAddresses
+                Resources: *
+                Resource: !Ref S3BuucketArn
+
+  BastionHostProfile:
+    Type: AWS::IAM:InstanceProfile
+    Properties:
+      Roles: !Ref BastionHostRole
+      Path: "/"
+
+  ElasticIp:
+    Type: AWS::EC2:EIP
+    Properties:
+      Domain: vpc
+
+  BastionAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LauncConfiguraitonName: !Ref ...
+      VPCZoneIdentifier: !Ref PublicSubnets
+      MinSize: 1
+      MaxSize: 1
+      CoolDown: 300
+      DesiredCapacity: 1
+      Tags:
+        - Key: Name
+          Value: !Sub "LinuxBastion-${EnvironmentName}"
+          PropagateAtLaunc: true
+        - Key: CreatedBy
+          Value: Cloudformation
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: "PT30M"
+  
+  BastionLaunchconfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+        ImageId:  !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", AMI]
+        InstanceType: !Ref InstanceType
+        SecurityGroups:
+            - !Ref SecurityGroup
+        IamInstanceProfile: !Ref BastionHostProfile
+        UserData:
+            "Fn::Base64": !Sub |
+                #!/bin/bash
+                set -x
+                yum install -y epel-release
+                yum install -y python-pip
+                pip install --upgrade pip &> /dev/null
+                pip install awscli --ignore-installed six &> /dev/null
+                yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+                yum install -y aws-cfn-bootstrap
+                EIP_LIST=${ElasticIp}
+                CLOUDWATCHGROUP=${BastionMainLogGroup}
+                /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionLaunchConfiguration
+                /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionAutoScalingGroup
+
+
+      
+
