@@ -29,7 +29,7 @@ Parameters:
 
     KeyPairName:
         Description: "Pub/Priv key pairs to allow a secure connection to the instance"
-        Type: AWS::EC2::KeyPair::Name
+        Type: AWS::EC2::KeyPair::KeyName
 
 Mappings:
 
@@ -62,10 +62,10 @@ Resources:
     Properties:
         LogGroupName: !Ref BastionMainLogGroup
         FilterPattern: "ON FROM USER PWD"
-        MetricTransformation:
-          MetricName: SSHCommandCount
-          MetricValue: 1
-          MetricNamespace: !Join ["/", "BastionHosts", !Ref AWS::StackName]
+        MetricTransformations:
+          - MetricName: SSHCommandCount
+            MetricValue: 1
+            MetricNamespace: !Join ["/", ["BastionHosts", !Ref 'AWS::StackName']]
 
   BastionRole:
     Type: AWS::IAM::Role
@@ -73,23 +73,37 @@ Resources:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
-          Effect: Allow
-          Principal:
-            Service:
-              - "ec2.amazonaws.com"
-          Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action: 
+              - sts:AssumeRole
       Path: "/"
       Policies:
-        - PolicyName: bastion-s3-access
+        -
+          PolicyName: bastion-s3-access
           PolicyDocument:
             Version: 2012-10-17
             Statement:
+              -
                 Effect: Allow
                 Action: 
                   - s3:GetObject
-                # Resource: !Ref S3BucketArn
-                Resource: *
-        - PolicyName: bastion-log-access
+                Resource: "*"
+        -
+          PolicyName: bastion-eip-access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - ec2:AssociateAddress
+                  - ec2:DescribeAddresses
+                Resource: "*"
+        -
+          PolicyName: bastion-log-access
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -103,36 +117,31 @@ Resources:
                   - logs:PutRetentionPolicy
                   - logs:PutMetricFilter
                   - logs:CreateLogGroup
-                Resource: !Join ["", "arn:aws:", !Ref AWS::Region, ":", !Ref AWS::AccountId, ":log-group:", !Ref BastionMainLogGroup, ":*"]
-        - PolicyName: bastion-eip-access
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-                Effect: Allow
-                Action: 
-                  - ec2:AssociateAddress
-                  - ec2:DescribeAddresses
-                Resources: *
-                Resource: !Ref S3BuucketArn
+                Resource: 
+                  - !Join ["", ["arn:aws:logs:", !Ref 'AWS::Region', ":", !Ref 'AWS::AccountId', ":log-group:", !Ref BastionMainLogGroup]]
+                  - !Join ["", ["arn:aws:logs:", !Ref 'AWS::Region', ":", !Ref 'AWS::AccountId', ":log-group:", !Ref BastionMainLogGroup, ":*:*"]]
+
 
   BastionHostProfile:
-    Type: AWS::IAM:InstanceProfile
+    Type: AWS::IAM::InstanceProfile
     Properties:
-      Roles: !Ref BastionHostRole
+      Roles: 
+        - !Ref BastionRole
       Path: "/"
 
   ElasticIp:
-    Type: AWS::EC2:EIP
+    Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
 
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
+      LaunchConfigurationName: !Ref BastionLaunchconfig
       VPCZoneIdentifier: !Ref PublicSubnets
       MinSize: 1
       MaxSize: 1
-      CoolDown: 300
+      Cooldown: 300
       DesiredCapacity: 1
       Tags:
         - Key: Name
@@ -171,14 +180,12 @@ Resources:
                 /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionLaunchConfiguration
                 /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionAutoScalingGroup
   
-  Outputs: 
-    ElasticIp:
+Outputs: 
+  ElasticIp:
       Description: Elastic IP for the bastion
       Value: !Ref ElasticIp
-      Export: !Sub ${EnvironmentName}-bastion-eip
 
-    CloudWatchLogs:
-      Description: CloudWatch Logs GroupName. SSH Logs will be stored here
-      Value: !Ref BastionMainLogGroup
-      Export: !Sub ${EnvironmentName}-bastion-loggroup
+  CloudWatchLogs:
+    Description: CloudWatch Logs GroupName. SSH Logs will be stored here
+    Value: !Ref BastionMainLogGroup
 
