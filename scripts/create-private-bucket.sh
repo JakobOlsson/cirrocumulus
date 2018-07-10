@@ -1,14 +1,18 @@
 #!/bin/env bash
 
 BUCKET=$1
-if [ -z $BUCKET ] || [ $BUCKET == "--help" ] || [ $BUCKET == "-h" ]; then
-  echo "usage: $0 <bucketname>"
+REGION=$2
+PROFILE=$3
+if [ -z $BUCKET ] || [ $BUCKET == "--help" ] || [ $BUCKET == "-h" ] || [ -z $REGION ]; then
+  echo "usage: $0 <bucketname> <region>"
   echo "optional: --profile <profile>"
   exit
 fi
-if [ $2 == "--profile" ]; then
-  PROFILE="$2 $3"
+if [ ! -n $PROFILE ]; then
+  if [ $PROFILE == "--profile" ]; then
+    PROFILE="$2 $3"
+  fi
 fi
 
 echo "*** creating bucket: $BUCKET"
-aws s3api create-bucket --acl private --bucket $BUCKET --region $AWS_DEFAULT_REGION --create-bucket-confugration LocationContraint="$AWS_DEFAULT_REGION" $PROFILE
+aws s3api create-bucket --acl private --bucket $BUCKET --create-bucket-configuration LocationConstraint="EU" --region $REGION $PROFILE
