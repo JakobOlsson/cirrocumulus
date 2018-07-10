@@ -3,6 +3,7 @@ Description: >
   with two public subnets. The bastion will have an auto-scaling group.
   It will also create a log group
 
+  Inspired by following example:
 Parameters:
 
     EnvironmentName:
@@ -25,6 +26,10 @@ Parameters:
     SecurityGroup:
         Description: Select the Security Group to use SSH Access
         Type: AWS::EC2::SecurityGroup::Id
+
+    KeyPairName:
+        Description: "Pub/Priv key pairs to allow a secure connection to the instance"
+        Type: AWS::EC2::KeyPair::Name
 
 Mappings:
 
@@ -124,7 +129,6 @@ Resources:
   BastionAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      LauncConfiguraitonName: !Ref ...
       VPCZoneIdentifier: !Ref PublicSubnets
       MinSize: 1
       MaxSize: 1
@@ -132,10 +136,11 @@ Resources:
       DesiredCapacity: 1
       Tags:
         - Key: Name
-          Value: !Sub "LinuxBastion-${EnvironmentName}"
-          PropagateAtLaunc: true
+          Value: !Sub "${EnvironmentName}-bastion-amazonlinux"
+          PropagateAtLaunch: true
         - Key: CreatedBy
           Value: Cloudformation
+          PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
         Count: 1
@@ -144,6 +149,7 @@ Resources:
   BastionLaunchconfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
+        KeyName: !Ref KeyPairName
         ImageId:  !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", AMI]
         InstanceType: !Ref InstanceType
         SecurityGroups:
@@ -157,13 +163,22 @@ Resources:
                 yum install -y python-pip
                 pip install --upgrade pip &> /dev/null
                 pip install awscli --ignore-installed six &> /dev/null
-                yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-                yum install -y aws-cfn-bootstrap
-                EIP_LIST=${ElasticIp}
+                # Following is already installed on Amazon Linux
+                # yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+                # yum install -y aws-cfn-bootstrap
+                EIP_LIST="${ElasticIp}"
                 CLOUDWATCHGROUP=${BastionMainLogGroup}
                 /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionLaunchConfiguration
                 /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionAutoScalingGroup
+  
+  Outputs: 
+    ElasticIp:
+      Description: Elastic IP for the bastion
+      Value: !Ref ElasticIp
+      Export: !Sub ${EnvironmentName}-bastion-eip
 
-
-      
+    CloudWatchLogs:
+      Description: CloudWatch Logs GroupName. SSH Logs will be stored here
+      Value: !Ref BastionMainLogGroup
+      Export: !Sub ${EnvironmentName}-bastion-loggroup
 
