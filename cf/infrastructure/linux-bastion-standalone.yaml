@@ -253,9 +253,9 @@ Resources:
         Timeout: PT5M
   
 Outputs: 
-  ElasticIp:
-      Description: Elastic IP for the bastion
-      Value: !Ref ElasticIp
+  BastionIP:
+      Description: Public IP for the bastion
+      Value: !GetAtt BastionHost.PublicIp
 
   CloudWatchLogs:
     Description: CloudWatch Logs GroupName. SSH Logs will be stored here
