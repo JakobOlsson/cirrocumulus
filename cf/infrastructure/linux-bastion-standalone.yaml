@@ -173,16 +173,7 @@ Resources:
               python3-pip: []
               awslogs: []
           files:
-            "/tmp/awscli.conf":
-              content: !Sub |
-                [plugins]
-                cwlogs = cwlogs
-                [default]
-                region = ${AWS::Region}
-              mode: '000400'
-              owner: "root"
-              group: "root"
-            "/tmp/sshlogs.conf":
+            "/etc/awslogs/config/sshlogs.conf":
               content: !Sub |
                 [general]
                 state_file= /var/awslogs/agent-state
@@ -218,6 +209,9 @@ Resources:
             updateawscliconf:
               command: !Sub "sed -i s/us-east-1/${AWS::Region}/g /etc/awslogs/awscli.conf"
               ignoreErrors: true
+            restartawslogs:
+              command: "systemctl restart awslogsd.service"
+              ignoreErrors: true
 
     Properties: 
       SubnetId: !Ref PublicSubnet 
@@ -232,11 +226,6 @@ Resources:
             #!/bin/bash
             # Get the latets cf package
             yum update -y aws-cfn-bootstrap
-            # enable cloudwatch logs agent
-            cp /tmp/awscli.conf /etc/awslogs/
-            cp /tmp/sshlogs.conf /etc/awslogs/config/
-            systemctl enable awslogsd.service
-            systemctl start awslogsd.service
             # Start cfn-init
             /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHost
             # Start cfn-up daemon - listens to changes for the instances metadata
