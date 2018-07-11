@@ -194,8 +194,7 @@ Resources:
               mode: '000400'
               owner: "root"
               group: "root"
-            "/tmp/cfn-hup.conf":
-              #"/etc/cfn/cfn-hup.conf":
+            "/etc/cfn/cfn-hup.conf":
               content: !Sub |
                 [main]
                 stack= ${AWS::StackId}
@@ -203,8 +202,7 @@ Resources:
               mode: "000400"
               owner: "root"
               group: "root"
-            "/tmp/cfn-auto-reloader.conf":
-              #"/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
               content: !Sub |
                 [cfn-auto-reloader-hook]
                 triggers=post.update
@@ -214,6 +212,13 @@ Resources:
             installawscli:
               command: "pip install awscli --ignore-installed six"
               ignoreErrors: true
+            updateawslogconf:
+              command: !Sub "sed -i s/log_group_name.*/log_group_name=${BastionMainLogGroup}/g /etc/awslogs/awslogs.conf"
+              ignoreErrors: true
+            updateawscliconf:
+              command: !Sub "sed -i s/us-east-1/${AWS::Region}/g /etc/awslogs/awscli.conf"
+              ignoreErrors: true
+
     Properties: 
       SubnetId: !Ref PublicSubnet 
       KeyName: !Ref KeyPairName
@@ -230,13 +235,12 @@ Resources:
             # enable cloudwatch logs agent
             cp /tmp/awscli.conf /etc/awslogs/
             cp /tmp/sshlogs.conf /etc/awslogs/config/
-            sed -i s/log_group_name.*/log_group_name=${BastionMainLogGroup}/g /etc/awslogs/awslogs.conf
             systemctl enable awslogsd.service
             systemctl start awslogsd.service
             # Start cfn-init
             /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHost
             # Start cfn-up daemon - listens to changes for the instances metadata
-            # /opt/aws/bin/cfn-hup &> /dev/null
+            /opt/aws/bin/cfn-hup &> /dev/null
             # All done, sending signal
             /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHost
       Tags:
