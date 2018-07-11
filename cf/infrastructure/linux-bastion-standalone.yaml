@@ -60,6 +60,8 @@ Mappings:
 Resources:
   BastionMainLogGroup:
     Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
   
   SSHMetricFilter:
     Type: AWS::Logs::MetricFilter
@@ -67,15 +69,25 @@ Resources:
         LogGroupName: !Ref BastionMainLogGroup
         FilterPattern: "ON FROM USER PWD"
         MetricTransformations:
-          - MetricName: SSHCommandCount
-            MetricValue: 1
-            MetricNamespace: !Join ["/", ["BastionHosts", !Ref 'AWS::StackName']]
+          - MetricName: ssh_cmd_count
+            MetricValue: '1'
+            MetricNamespace: !Join ["/", ["BastionHost", !Ref 'AWS::StackName']]
+
+  SSHInvalidUser:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref BastionMainLogGroup
+      FilterPattern: "[Mon, day, timestamp, ip, id, status = Invalid, ...]"
+      MetricTransformations:
+        - MetricName: ssh_invalid_user
+          MetricValue: '1'
+          MetricNamespace: SSH
 
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: 2012-10-17
+        Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
@@ -88,7 +100,7 @@ Resources:
         -
           PolicyName: bastion-s3-access
           PolicyDocument:
-            Version: 2012-10-17
+            Version: '2012-10-17'
             Statement:
               -
                 Effect: Allow
@@ -98,7 +110,7 @@ Resources:
         -
           PolicyName: bastion-eip-access
           PolicyDocument:
-            Version: 2012-10-17
+            Version: '2012-10-17'
             Statement:
               -
                 Effect: Allow
@@ -109,7 +121,7 @@ Resources:
         -
           PolicyName: bastion-log-access
           PolicyDocument:
-            Version: 2012-10-17
+            Version: '2012-10-17'
             Statement:
                 Effect: Allow
                 Action:
@@ -138,15 +150,85 @@ Resources:
     Properties:
       Domain: vpc
 
-  BastionAutoScalingGroup:
-    Type: AWS::AutoScaling::AutoScalingGroup
-    Properties:
-      LaunchConfigurationName: !Ref BastionLaunchconfig
-      VPCZoneIdentifier: !Ref PublicSubnets
-      MinSize: 1
-      MaxSize: 1
-      Cooldown: 300
-      DesiredCapacity: 1
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Metadata: 
+      # cfn-init reads a given resources medata
+      AWS::CloudFormation::Init: 
+        config: 
+          packages: 
+            yum:
+              epel-release: []
+              python27-pip: []
+              python36-pip: []
+              awslogs: []
+          sources: 
+            :
+          files:
+
+              "/etc/awslogs/awscli.conf": 
+                content:  !Sub | 
+                  [plugins]
+                  cwlogs = cwlogs
+                  [default],
+                  region = {AWS::Region}
+                mode: "000444"
+                owner: "root"
+                group: "root"
+            "/etc/awslogs/awslogs.conf":
+              content: !Sub |
+                [general]
+                state_file= /var/awslogs/agent-state
+                [/var/log/secure]
+                file = /var/log/secure
+                log_group_name = ${BastionMainLogGroup}
+                log_stream_name = {instance_id}/ssh.log
+                datetime_format = %d/%b/%Y:%H:%M:%S
+              mode: '000400'
+              owner: "root"
+              group: "root"
+            "/etc/cfn/cfn-hup.conf":
+              content: !Sub |
+                [main]
+                stack= ${AWS::StackId}
+                region=${AWS::Region}
+              mode: "000400"
+              owner: "root"
+              group: "root"
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.BastionHost.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource BastionHost --region ${AWS::Region}
+          commands: 
+            installawscli:
+              command: "pip install awscli --ignore-installed six"
+              ignoreErrors: true
+    Properties: 
+      KeyName: !Ref KeyPairName
+      ImageId:  !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", AMI]
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+          - !Ref SecurityGroup
+      IamInstanceProfile: !Ref BastionHostProfile
+      UserData:
+        "Fn::Base64": !Sub |
+            #!/bin/bash
+            # Get the latets cf package
+            yum update -y aws-cfn-bootstrap
+            set -x
+            EIP_LIST="${ElasticIp}"
+            CLOUDWATCHGROUP=${BastionMainLogGroup}
+            # Start cfn-init
+            /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHost
+            # Start cfn-up daemon - listens to changes for the instances metadata
+            /opt/aws/bin/cfn-hup &> /dev/null
+            # enable cloudwatch logs agent
+            systemctl start awslogsd
+            systemctl enable awslogsd.service
+            # All done, sending signal
+            /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHost
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-bastion-amazonlinux"
@@ -156,33 +238,7 @@ Resources:
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
-        Count: 1
-        Timeout: "PT30M"
-  
-  BastionLaunchconfig:
-    Type: AWS::AutoScaling::LaunchConfiguration
-    Properties:
-        KeyName: !Ref KeyPairName
-        ImageId:  !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", AMI]
-        InstanceType: !Ref InstanceType
-        SecurityGroups:
-            - !Ref SecurityGroup
-        IamInstanceProfile: !Ref BastionHostProfile
-        UserData:
-            "Fn::Base64": !Sub |
-                #!/bin/bash
-                set -x
-                yum install -y epel-release
-                yum install -y python27-pip python36-pip
-                #pip install --upgrade pip &> /dev/null
-                pip install awscli --ignore-installed six &> /dev/null
-                # Following is already installed on Amazon Linux
-                # yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-                # yum install -y aws-cfn-bootstrap
-                EIP_LIST="${ElasticIp}"
-                CLOUDWATCHGROUP=${BastionMainLogGroup}
-                /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionLaunchConfiguration
-                /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionAutoScalingGroup
+        Timeout: PT5M
   
 Outputs: 
   ElasticIp:
