@@ -28,7 +28,7 @@ Parameters:
         Type: AWS::EC2::Subnet::Id
 
     SecurityGroup:
-        Description: Select the Security Group to use SSH Access
+        Description: Select the Security Group that gives SSH Access
         Type: AWS::EC2::SecurityGroup::Id
 
     KeyPairName:
@@ -153,7 +153,6 @@ Resources:
   BastionHost:
     Type: AWS::EC2::Instance
     Metadata: 
-      # cfn-init reads a given resources medata
       AWS::CloudFormation::Init: 
         config: 
           packages: 
