@@ -23,9 +23,9 @@ Parameters:
         Description: Choose which VPC these bastion hosts hould be deployed to
         Type: AWS::EC2::VPC::Id
 
-    PublicSubnets:
-        Description: Choose which public subnets these bastion hosts hould be deployed to
-        Type: List<AWS::EC2::Subnet::Id>
+    PublicSubnet:
+        Description: Choose which public subnet these bastion hosts hould be deployed to
+        Type: AWS::EC2::Subnet::Id
 
     SecurityGroup:
         Description: Select the Security Group to use SSH Access
@@ -206,6 +206,7 @@ Resources:
               command: "pip install awscli --ignore-installed six"
               ignoreErrors: true
     Properties: 
+      SubnetId: !Ref PublicSubnet 
       KeyName: !Ref KeyPairName
       ImageId:  !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", AMI]
       InstanceType: !Ref InstanceType
