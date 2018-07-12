@@ -51,27 +51,6 @@ Resources:
                 - Key: Name
                   Value: !Sub ${EnvironmentName}-LoadBalancers
 
-    SSHSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            VpcId: !Ref VPC
-            GroupDescription: Access to ssh port and ping from any host
-            SecurityGroupIngress:
-                # Allow acess from anywhere on tcp to port 22
-                - CidrIp: 0.0.0.0/0
-                  IpProtocol: tcp
-                  FromPort: 22
-                  ToPort: 22
-                - CidrIp: 0.0.0.0/0
-                  IpProtocol: icmp
-                  FromPort: -1
-                  ToPort: -1
-            Tags:
-                - Key: CreatedBy
-                  Value: Cloudformation
-                - Key: Name
-                  Value: !Sub ${EnvironmentName}-SSH
-
 Outputs:
 
     ECSHostSecurityGroup: 
@@ -81,7 +60,3 @@ Outputs:
     LoadBalancerSecurityGroup:
         Description: A reference to the security group for load balancers
         Value: !Ref LoadBalancerSecurityGroup
-
-    SSHSecurityGroup:
-        Description: A reference to the security group giving access to SSH
-        Value: !Ref SSHSecurityGroup
