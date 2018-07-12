@@ -146,7 +146,7 @@ Outputs:
 
     BastionHostIP:
         Description: The public ip of the bastion host (ssh ingress point)
-        Value: !GetAtt BastionHost.Outputs.sBastionIP
+        Value: !GetAtt BastionHost.Outputs.BastionIP
         Export:
           Name: !Sub "${EnvironmentName}-bastionip"
 
