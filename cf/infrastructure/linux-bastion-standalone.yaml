@@ -43,26 +43,27 @@ Mappings:
             AMI: ami-7c4f7097
 
 Resources:
-    BastionSSHSecurityGroup:
-        Type: AWS::EC2::SecurityGroup
-        Properties:
-            VpcId: !Ref VPC
-            GroupDescription: Access to ssh port and ping from any host
-            SecurityGroupIngress:
-                # Allow acess from anywhere on tcp to port 22
-                - CidrIp: 0.0.0.0/0
-                  IpProtocol: tcp
-                  FromPort: 22
-                  ToPort: 22
-                - CidrIp: 0.0.0.0/0
-                  IpProtocol: icmp
-                  FromPort: -1
-                  ToPort: -1
-            Tags:
-                - Key: CreatedBy
-                  Value: Cloudformation
-                - Key: Name
-                  Value: !Sub ${EnvironmentName}-SSH
+  BastionSSHSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        VpcId: !Ref VPC
+        GroupDescription: Access to ssh port and ping from any host
+        SecurityGroupIngress:
+            # Allow acess from anywhere on tcp to port 22
+            - CidrIp: 0.0.0.0/0
+              IpProtocol: tcp
+              FromPort: 22
+              ToPort: 22
+            - CidrIp: 0.0.0.0/0
+              IpProtocol: icmp
+              FromPort: -1
+              ToPort: -1
+        Tags:
+            - Key: CreatedBy
+              Value: Cloudformation
+            - Key: Name
+              Value: !Sub ${EnvironmentName}-SSH
+
   BastionLogGrp:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -258,7 +259,7 @@ Resources:
       ImageId:  !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMI]
       InstanceType: !Ref InstanceType
       SecurityGroupIds:
-          - !Ref SSHSecurityGroup
+          - !Ref BastionSSHSecurityGroup
       IamInstanceProfile: !Ref BastionHostProfile
       UserData:
         "Fn::Base64":
