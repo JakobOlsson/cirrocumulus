@@ -107,8 +107,8 @@ Resources:
             TemplateURL: !Sub ${TemplateBucketURL}infrastructure/linux-bastion-standalone.yaml
             Parameters:
               EnvironmentName: !Ref EnvironmentName
-              Subnet: !GetAtt VPC.Outputs.PublicSubnet
-              VPC: !GettAtt VPC.Outputs.VPC
+              Subnet: !GetAtt VPC.Outputs.PublicSubnet1
+              VPC: !GetAtt VPC.Outputs.VPC
               KeyPairName: !Ref KeyPairName
             Tags:
               -
@@ -146,7 +146,7 @@ Outputs:
 
     BastionHostIP:
         Description: The public ip of the bastion host (ssh ingress point)
-        Value: !GettAtt BastionHost.BastionIP
+        Value: !GetAtt BastionHost.Outputs.sBastionIP
         Export:
           Name: !Sub "${EnvironmentName}-bastionip"
 
