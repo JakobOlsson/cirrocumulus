@@ -53,19 +53,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: 7
-  
-  SSHMetricFilter:
-    Type: AWS::Logs::MetricFilter
-    Properties:
-        LogGroupName: !Ref BastionMainLogGroup
-        FilterPattern: "ON FROM USER PWD"
-        MetricTransformations:
-          - MetricName: ssh_cmd_count
-            MetricValue: '1'
-            MetricNamespace: !Join ["/", ["BastionHost", !Ref 'AWS::StackName']]
 
   SSHInvalidUser:
     Type: AWS::Logs::MetricFilter
+    # A CloudWatch Metrich Filter to watch for 
+    # failed ssh login attempts
+    # Can be used for alarms
     Properties:
       LogGroupName: !Ref BastionMainLogGroup
       FilterPattern: "[Mon, day, timestamp, ip, id, status = Invalid, ...]"
@@ -77,6 +70,10 @@ Resources:
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
+      # It is good practice to add region to your role names
+      # To distinguish them from each other in your account
+      # since iam roles live Globaly in your account
+      RoleName: !Sub ${EnvironmentName}-${AWS::StackName}Role-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -90,6 +87,7 @@ Resources:
       Policies:
         -
           PolicyName: bastion-s3-access
+          # Access to s3 buckets
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -97,9 +95,14 @@ Resources:
                 Effect: Allow
                 Action: 
                   - s3:GetObject
+                  - s3:PutObject
+                  - s3:AbortMultipartUpload
+                  - s3:Listbucket
+                  - s3:ListbucketMultipartUploads
                 Resource: "*"
         -
-          PolicyName: bastion-eip-access
+          PolicyName: bastion-ec2-access
+          # Gives acces to ElasticIp and Status
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -112,6 +115,9 @@ Resources:
                 Resource: "*"
         -
           PolicyName: bastion-log-access
+          # Gives access to Create log group & stream if not exists
+          # and push new logs if already not there
+          # Restricted to only create it's own group and streams inside
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -130,22 +136,40 @@ Resources:
                   - !Join ["", ["arn:aws:logs:", !Ref 'AWS::Region', ":", !Ref 'AWS::AccountId', ":log-group:", !Ref BastionMainLogGroup, ":*:*"]]
         -
           PolicyName: bastion-ssm-access
+          # Needed for SSM Agent 
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
                 Effect: Allow
                 Action:
-                  - ssm:List*
-                  - ssm:Update*
+                  - ssm:DescribeAssociation
+                  - ssm:GetDeployablePatchSnapshotForInstance
+                  - ssm:GetDocument
+                  - ssm:GetManifest
+                  - ssm:GetParameters
+                  - ssm:ListAssociations
+                  - ssm:ListInstanceAssociations
+                  - ssm:PutInventory
+                  - ssm:PutComplianceItems
+                  - ssm:PutConfigurePackageResult
+                  - ssm:UpdateAssociationStatus
+                  - ssm:UpdateInstanceAssociationStatus
+                  - ssm:UpdateInstanceInformation
                 Resource: "*"
         -
           PolicyName: bastion-ec2messages-access
+          # Deployment messaging for status, etc
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
                 Effect: Allow
                 Action:
-                  - ec2messages:*
+                  - ec2messages:AcknowledgeMessage
+                  - ec2messages:DeleteMessage
+                  - ec2messages:FailMessage
+                  - ec2messages:GetEndpoint
+                  - ec2messages:GetMessages
+                  - ec2messages:SendReply
                 Resource: "*" 
 
 
@@ -222,7 +246,8 @@ Resources:
           - !Ref SecurityGroup
       IamInstanceProfile: !Ref BastionHostProfile
       UserData:
-        "Fn::Base64": !Sub |
+        "Fn::Base64":
+          !Sub |
             #!/bin/bash
             # Get the latets cf package
             yum update -y aws-cfn-bootstrap
@@ -234,11 +259,13 @@ Resources:
             /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHost
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-bastion-amazonlinux"
+          Value: !Sub "${EnvironmentName} bastion host with amazonlinux2"
         - Key: CreatedBy
           Value: Cloudformation
     CreationPolicy:
+      # How long to wait for the instance to report back successfully
       ResourceSignal:
+        # 5Minutes
         Timeout: PT5M
   
 Outputs: 
@@ -247,6 +274,6 @@ Outputs:
       Value: !GetAtt BastionHost.PublicIp
 
   CloudWatchLogs:
-    Description: CloudWatch Logs GroupName. SSH Logs will be stored here
+    Description: CloudWatch Logs GroupName. SSH Logs and instance logs will be streamed here
     Value: !Ref BastionMainLogGroup
 
