@@ -107,7 +107,7 @@ Resources:
             TemplateURL: !Sub ${TemplateBucketURL}infrastructure/linux-bastion-standalone.yaml
             Parameters:
               EnvironmentName: !Ref EnvironmentName
-              Subnet: !GetAtt VPC.Outputs.PublicSubnet1
+              PublicSubnet: !GetAtt VPC.Outputs.PublicSubnet1
               VPC: !GetAtt VPC.Outputs.VPC
               KeyPairName: !Ref KeyPairName
             Tags:
