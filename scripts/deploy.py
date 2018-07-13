@@ -27,7 +27,11 @@ def create_keypair(name):
         print("Key:", name, "already exists")
     else:
         print("Creating key:", name)
-        print("*** IMPLEMENT:", "creation of EC2 keypair")
+        client = boto3.client('ec2')
+        r = client.create_key_pair(KeyName=name)
+        print("Created:", r.get('KeyName'))
+        print("PrivateKey:\n", r.get('KeyMaterial', 'missing'))
+        print("FingerPrint:", r.get('KeyFingerprint', 'missing'))
 
 
 def get_s3bucket_names():
