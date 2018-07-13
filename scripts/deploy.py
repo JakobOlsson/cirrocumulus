@@ -77,26 +77,31 @@ def get_config(environmentname, configfile='deploy.conf'):
     # Default Settings
     cnfg = {
                 "region": "eu-west-1",
-                "s3_bucket_name": "prospero-cfg-bucket",
+                "bucket_name": "cfg-bucket",
                 "keypair_name": "BastionKey",
            }
     absolut_pathname = os.path.abspath(os.path.dirname(sys.argv[0]))
     configfile = os.path.join(absolut_pathname, configfile)
+
     if os.path.isfile(configfile):
-        with open(configfile, 'r') as parsefile:
-            config = configparser.ConfigParser()
-            config.read(parsefile)
-            if 'global' in config:
-                glb = config['global']
-                reg = glb.get('region')
-                s3b = glb.get('s3_bucket_name')
-                kpn = glb.get('keypair_name')
-                cnfg['region'] = reg if reg \
-                    else cnfg['region']
-                cnfg['s3_bucket_name'] = s3b if s3b \
-                    else cnfg['s3_bucket_name']
-                cnfg['keypair_name'] = kpn if kpn \
-                    else cnfg['keypair_name']
+        cp = configparser.ConfigParser()
+        cp.read(configfile)
+        section = 'DEFAULT'
+        if environmentname and environmentname in cp:
+            section = environmentname
+        cnfg['region'] = cp.get(section,
+                                'region',
+                                fallback=cnfg['region'])
+        cnfg['bucket_name'] = cp.get(section,
+                                     'bucket_name',
+                                     fallback=cnfg['bucket_name'])
+
+        cnfg['keypair_name'] = cp.get(section,
+                                      'keypair_name',
+                                      fallback=cnfg['keypair_name'])
+        cnfg['version'] = cp.get(section,
+                                 'version',
+                                 fallback='')
     return cnfg
 
 
@@ -108,9 +113,9 @@ def get_status(environmentname):
     stts['keypair'] = {'name': cnfg['keypair_name'],
                        'status':
                        cnfg['keypair_name'] in get_keypair_names()}
-    stts['s3bucket'] = {'name': cnfg['s3_bucket_name'],
+    stts['bucket_name'] = {'name': cnfg['bucket_name'],
                         'status':
-                        cnfg['s3_bucket_name'] in get_s3bucket_names()}
+                        cnfg['bucket_name'] in get_s3bucket_names()}
 
     stts['stacks'] = []
     stacks = get_stack_names()
@@ -121,11 +126,11 @@ def get_status(environmentname):
         stts['stacks'].append({'name':
                                stack,
                                'satus':
-                               info.get('StackStatus'),
+                               info.get('StackStatus', 'N/A'),
                                'date':
-                               info.get('LastUpdateTime'),
+                               info.get('LastUpdateTime', 'N/A'),
                                'tags':
-                               info.get('Tags')})
+                               info.get('Tags', [])})
     return stts
 
 
