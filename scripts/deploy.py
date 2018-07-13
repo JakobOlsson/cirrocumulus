@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 """
     A tool for setting up infrastructure common resources
     Setup a new environment
@@ -64,10 +64,12 @@ def create_bucket(name):
 def get_stack_names():
     """ Returns a list of CloudFormation Stack names """
     client = boto3.client('cloudformation')
-    stacknames = client.list_stacks().get('StackSummaries')
-    if stacknames:
-        return [x['StackName'] for x in stacknames]
-    return []
+    stacks = client.list_stacks().get('StackSummaries',[])
+    stacknames = []
+    for stack in stacks:
+        if 'DELETE' not in stack['StackStatus']:
+            stacknames.append(stack['StackName'])
+    return stacknames
 
 
 def get_stack_info(name):
