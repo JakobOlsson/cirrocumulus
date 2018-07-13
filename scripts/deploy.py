@@ -48,7 +48,13 @@ def create_bucket(name):
         print("S3Bucket:", name, "already exists")
     else:
         print("Creating S3bucket:", name)
-        print("*** IMPLEMENT:", "creation of s3bucket")
+        client = boto3.client('s3')
+        r = client.create_bucket(ACL='private',
+                                 Bucket=name,
+                                 CreateBucketConfiguration={
+                                  'LocationConstraint': 'EU'
+                                 })
+        print("Created:", r.get('Location', 'missing'))
 
 
 def get_stack_names():
