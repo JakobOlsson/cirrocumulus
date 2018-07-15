@@ -5,64 +5,66 @@ Description: >
   Inspired by following example:
 Parameters:
 
-    EnvironmentName:
-        Description: An environment name that will be prefixed to resource names
-        Type: String
+  EnvironmentName:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
 
-    InstanceType:
-        Description: Which Instance Type should be running the bastion
-        Type: String
-        Default: t2.micro
-        AllowedValues:
-          - t2.nano
-          - t2.micro
-          - t2.small
-    VPC:
-        Description: VPCid - used for the security group creation
-        Type: AWS::EC2::VPC::Id
+  InstanceType:
+    Description: Which Instance Type should be running the bastion
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.nano
+      - t2.micro
+      - t2.small
+  VPC:
+    Description: VPCid - used for the security group creation
+    Type: AWS::EC2::VPC::Id
 
-    PublicSubnet:
-        Description: Choose which public subnet these bastion hosts hould be deployed to
-        Type: AWS::EC2::Subnet::Id
+  PublicSubnet:
+    Description: Choose which public subnet these bastion hosts hould be deployed to
+    Type: AWS::EC2::Subnet::Id
 
-    KeyPairName:
-        Description: "Pub/Priv key pairs to allow a secure connection to the instance"
-        Type: AWS::EC2::KeyPair::KeyName
+  KeyPairName:
+    Description: "Pub/Priv key pairs to allow a secure connection to the instance"
+    Type: AWS::EC2::KeyPair::KeyName
 
 Mappings:
 
-    # These are the latest amazon linux 2 AMIs as of Jul 2018:
-    AWSRegionToAMI:
-        eu-west-3:
-            AMI: ami-2cf54551 
-        eu-west-2:
-            AMI: ami-b8b45ddf
-        eu-west-1:
-            AMI: ami-466768ac
-        eu-central-1:
-            AMI: ami-7c4f7097
+  # These are the latest amazon linux 2 AMIs as of Jul 2018:
+  AWSRegionToAMI:
+    eu-west-3:
+      AMI: ami-2cf54551
+    eu-west-2:
+      AMI: ami-b8b45ddf
+    eu-west-1:
+      AMI: ami-466768ac
+    eu-central-1:
+      AMI: ami-7c4f7097
 
 Resources:
   BastionSSHSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-        VpcId: !Ref VPC
-        GroupDescription: Access to ssh port and ping from any host
-        SecurityGroupIngress:
-            # Allow acess from anywhere on tcp to port 22
-            - CidrIp: 0.0.0.0/0
-              IpProtocol: tcp
-              FromPort: 22
-              ToPort: 22
-            - CidrIp: 0.0.0.0/0
-              IpProtocol: icmp
-              FromPort: -1
-              ToPort: -1
-        Tags:
-            - Key: CreatedBy
-              Value: Cloudformation
-            - Key: Name
-              Value: !Sub ${EnvironmentName}-SSH
+      VpcId: !Ref VPC
+      GroupDescription: Access to ssh port and ping from any host
+      SecurityGroupIngress:
+        # Allow acess from anywhere on tcp to port 22
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+      Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName}
+        - Key: CreatedBy
+          Value: CloudFormation
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-SSH
 
   BastionLogGrp:
     Type: AWS::Logs::LogGroup
@@ -71,7 +73,7 @@ Resources:
 
   SSHInvalidUser:
     Type: AWS::Logs::MetricFilter
-    # A CloudWatch Metrich Filter to watch for 
+    # A CloudWatch Metrich Filter to watch for
     # failed ssh login attempts
     # Can be used for alarms
     Properties:
@@ -96,7 +98,7 @@ Resources:
             Principal:
               Service:
                 - ec2.amazonaws.com
-            Action: 
+            Action:
               - sts:AssumeRole
       Path: "/"
       Policies:
@@ -109,7 +111,7 @@ Resources:
             Statement:
               -
                 Effect: Allow
-                Action: 
+                Action:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:AbortMultipartUpload
@@ -137,22 +139,23 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-                - Effect: Allow
-                  Action:
-                    - logs:CreateLogStream
-                    - logs:GetLogEvents
-                    - logs:PutLogEvents   
-                    - logs:DescribeLogGroups
-                    - logs:DescribeLogStreams
-                    - logs:PutRetentionPolicy
-                    - logs:PutMetricFilter
-                    - logs:CreateLogGroup
-                  Resource:
-                    - !Join ["", ["arn:aws:logs:", !Ref 'AWS::Region', ":", !Ref 'AWS::AccountId', ":log-group:", !Ref BastionLogGrp]]
-                    - !Join ["", ["arn:aws:logs:", !Ref 'AWS::Region', ":", !Ref 'AWS::AccountId', ":log-group:", !Ref BastionLogGrp, ":*:*"]]
+              -
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:GetLogEvents
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutRetentionPolicy
+                  - logs:PutMetricFilter
+                  - logs:CreateLogGroup
+                Resource:
+                  - !Join ["", ["arn:aws:logs:", !Ref 'AWS::Region', ":", !Ref 'AWS::AccountId', ":log-group:", !Ref BastionLogGrp]]
+                  - !Join ["", ["arn:aws:logs:", !Ref 'AWS::Region', ":", !Ref 'AWS::AccountId', ":log-group:", !Ref BastionLogGrp, ":*:*"]]
         -
           PolicyName: bastion-ssm-access
-          # Needed for SSM Agent 
+          # Needed for SSM Agent
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -186,14 +189,12 @@ Resources:
                   - ec2messages:GetEndpoint
                   - ec2messages:GetMessages
                   - ec2messages:SendReply
-                Resource: "*" 
-
-
+                Resource: "*"
 
   BastionHostProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
-      Roles: 
+      Roles:
         - !Ref BastionRole
       Path: "/"
 
@@ -204,10 +205,10 @@ Resources:
 
   BastionHost:
     Type: AWS::EC2::Instance
-    Metadata: 
-      AWS::CloudFormation::Init: 
-        config: 
-          packages: 
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
             yum:
               python2-pip: []
               python3-pip: []
@@ -239,7 +240,7 @@ Resources:
                 triggers=post.update
                 path=Resources.BastionHost.Metadata.AWS::CloudFormation::Init
                 action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource BastionHost --region ${AWS::Region}
-          commands: 
+          commands:
             installawscli:
               command: "pip install awscli --ignore-installed six"
               ignoreErrors: true
@@ -253,13 +254,13 @@ Resources:
               command: "systemctl restart awslogsd.service"
               ignoreErrors: true
 
-    Properties: 
-      SubnetId: !Ref PublicSubnet 
+    Properties:
+      SubnetId: !Ref PublicSubnet
       KeyName: !Ref KeyPairName
-      ImageId:  !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMI]
+      ImageId: !FindInMap [AWSRegionToAMI, !Ref 'AWS::Region', AMI]
       InstanceType: !Ref InstanceType
       SecurityGroupIds:
-          - !Ref BastionSSHSecurityGroup
+        - !Ref BastionSSHSecurityGroup
       IamInstanceProfile: !Ref BastionHostProfile
       UserData:
         "Fn::Base64":
@@ -274,22 +275,25 @@ Resources:
             # All done, sending signal
             /opt/aws/bin/cfn-signal -e $? --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHost
       Tags:
+        - Key: Environment
+          Value: !Sub ${EnvironmentName}
         - Key: Name
           Value: !Sub "${EnvironmentName}-bastion"
         - Key: CreatedBy
-          Value: Cloudformation
+          Value: CloudFormation
     CreationPolicy:
       # How long to wait for the instance to report back successfully
       ResourceSignal:
         # 5Minutes
         Timeout: PT5M
-  
-Outputs: 
+
+Outputs:
   BastionIP:
-      Description: Public IP for the bastion
-      Value: !GetAtt BastionHost.PublicIp
+    Description: Public IP for the bastion
+    Value: !GetAtt BastionHost.PublicIp
 
   CloudWatchLogs:
-    Description: CloudWatch Logs GroupName. SSH Logs and instance logs will be streamed here
+    Description: |
+      CloudWatch Logs GroupName.
+      SSH Logs and instance logs will be streamed here
     Value: !Ref BastionLogGrp
-
