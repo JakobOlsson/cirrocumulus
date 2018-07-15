@@ -1,33 +1,33 @@
 Description: >
   This Template deploys a VPC in one region spread over Two AZs
-  2 Priv Subnets 
+  2 Priv Subnets
   2 Pub Subnets
   1 Bastion Host with public ip - ssh ingress
-  
-  Pre-req: 
+
+  Pre-req:
     - A S3 Bucket setup to store the templates
     - A EC2 KeyPair
 Parameters:
-    
-    TemplateBucketURL:
-      Description: HTTPS URL to S3 Bucket storing the templates used.  
-      Type: String
-      Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
 
-    KeyPairName:
-      Description: A EC2 KeyPair
-      Type: AWS::EC2::KeyPair::KeyName
+  TemplateBucketURL:
+    Description: HTTPS URL to S3 Bucket storing the templates used.
+    Type: String
+    Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
 
-    EnvironmentName:
-      Description: which environment to spin-up
-      Type: String
-      Default: development
-      AllowedValues:
-        - development
-        - test
-        - integration
-        - production
-        - other
+  KeyPairName:
+    Description: A EC2 KeyPair
+    Type: AWS::EC2::KeyPair::KeyName
+
+  EnvironmentName:
+    Description: which environment to spin-up
+    Type: String
+    Default: development
+    AllowedValues:
+      - development
+      - test
+      - integration
+      - production
+      - other
 
 Mappings:
 
@@ -67,89 +67,89 @@ Mappings:
 
 Resources:
 
-    VPC:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: !Sub ${TemplateBucketURL}infrastructure/vpc.yaml
-            Parameters:
-                EnvironmentName:    !Ref EnvironmentName
-                VpcCIDR:            !FindInMap [CIDRsMap, !Ref EnvironmentName, vpc]
-                PublicSubnet1CIDR:  !FindInMap [CIDRsMap, !Ref EnvironmentName, pub1]
-                PublicSubnet2CIDR:  !FindInMap [CIDRsMap, !Ref EnvironmentName, pub2]
-                PrivateSubnet1CIDR: !FindInMap [CIDRsMap, !Ref EnvironmentName, priv1]
-                PrivateSubnet2CIDR: !FindInMap [CIDRsMap, !Ref EnvironmentName, priv2]
-            Tags:
-              -
-                Key: Name
-                Value: !Ref EnvironmentName
-              -
-                Key: createdBy
-                Value: env-bootstrap
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${TemplateBucketURL}infrastructure/vpc.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        VpcCIDR: !FindInMap [CIDRsMap, !Ref EnvironmentName, vpc]
+        PublicSubnet1CIDR: !FindInMap [CIDRsMap, !Ref EnvironmentName, pub1]
+        PublicSubnet2CIDR: !FindInMap [CIDRsMap, !Ref EnvironmentName, pub2]
+        PrivateSubnet1CIDR: !FindInMap [CIDRsMap, !Ref EnvironmentName, priv1]
+        PrivateSubnet2CIDR: !FindInMap [CIDRsMap, !Ref EnvironmentName, priv2]
+      Tags:
+        -
+          Key: Name
+          Value: !Ref EnvironmentName
+        -
+          Key: createdBy
+          Value: env-bootstrap
 
-    SecurityGroups:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: !Sub ${TemplateBucketURL}infrastructure/security-groups.yaml
-            Parameters: 
-                EnvironmentName: !Ref EnvironmentName
-                VPC: !GetAtt VPC.Outputs.VPC
-            Tags:
-              -
-                Key: Name
-                Value: !Ref EnvironmentName
-              -
-                Key: createdBy
-                Value: env-bootstrap
+  SecurityGroups:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${TemplateBucketURL}infrastructure/security-groups.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        VPC: !GetAtt VPC.Outputs.VPC
+      Tags:
+        -
+          Key: Name
+          Value: !Ref EnvironmentName
+        -
+          Key: createdBy
+          Value: env-bootstrap
 
-    BastionHost:
-        Type: AWS::CloudFormation::Stack
-        Properties:
-            TemplateURL: !Sub ${TemplateBucketURL}infrastructure/linux-bastion-standalone.yaml
-            Parameters:
-              EnvironmentName: !Ref EnvironmentName
-              PublicSubnet: !GetAtt VPC.Outputs.PublicSubnet1
-              VPC: !GetAtt VPC.Outputs.VPC
-              KeyPairName: !Ref KeyPairName
-            Tags:
-              -
-                Key: Name
-                Value: !Ref EnvironmentName
-              -
-                Key: createdBy
-                Value: env-bootstrap
+  BastionHost:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${TemplateBucketURL}infrastructure/linux-bastion-standalone.yaml
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        PublicSubnet: !GetAtt VPC.Outputs.PublicSubnet1
+        VPC: !GetAtt VPC.Outputs.VPC
+        KeyPairName: !Ref KeyPairName
+      Tags:
+        -
+          Key: Name
+          Value: !Ref EnvironmentName
+        -
+          Key: createdBy
+          Value: env-bootstrap
 
 Outputs:
-    
-    VPCStack:
-        Description: The VPC CF Stack, to reference outputs
-        Value: !Ref VPC
-        Export:
-          Name: !Sub "${EnvironmentName}-vpcstack"
 
-    VPCId:
-        Description: The VPC Id
-        Value: !GetAtt VPC.Outputs.VPC
-        Export: 
-          Name: !Sub "${EnvironmentName}-vpcid"
+  VPCStack:
+    Description: The VPC CF Stack, to reference outputs
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${EnvironmentName}-vpcstack"
 
-    PrivateSubnets:
-        Description: The VPC private subnets list
-        Value: !GetAtt VPC.Outputs.PrivateSubnets
-        Export: 
-          Name: !Sub "${EnvironmentName}-privatesubnets"
+  VPCId:
+    Description: The VPC Id
+    Value: !GetAtt VPC.Outputs.VPC
+    Export:
+      Name: !Sub "${EnvironmentName}-vpcid"
 
-    PublicSubnets:
-        Description: The VPC public subnets list
-        Value: !GetAtt VPC.Outputs.PublicSubnets
-        Export: 
-          Name: !Sub "${EnvironmentName}-publicsubnets"
+  PrivateSubnets:
+    Description: The VPC private subnets list
+    Value: !GetAtt VPC.Outputs.PrivateSubnets
+    Export:
+      Name: !Sub "${EnvironmentName}-privatesubnets"
 
-    BastionHostIP:
-        Description: The public ip of the bastion host (ssh ingress point)
-        Value: !GetAtt BastionHost.Outputs.BastionIP
-        Export:
-          Name: !Sub "${EnvironmentName}-bastionip"
+  PublicSubnets:
+    Description: The VPC public subnets list
+    Value: !GetAtt VPC.Outputs.PublicSubnets
+    Export:
+      Name: !Sub "${EnvironmentName}-publicsubnets"
 
-    SecurityGroupsStack:
-        Description: The SecurityGroups Stack, to reference outputs
-        Value: !Ref SecurityGroups
+  BastionHostIP:
+    Description: The public ip of the bastion host (ssh ingress point)
+    Value: !GetAtt BastionHost.Outputs.BastionIP
+    Export:
+      Name: !Sub "${EnvironmentName}-bastionip"
+
+  SecurityGroupsStack:
+    Description: The SecurityGroups Stack, to reference outputs
+    Value: !Ref SecurityGroups
