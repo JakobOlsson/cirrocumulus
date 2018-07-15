@@ -28,10 +28,10 @@ def create_keypair(name):
     else:
         print("Creating key:", name)
         client = boto3.client('ec2')
-        r = client.create_key_pair(KeyName=name)
-        print("Created:", r.get('KeyName'))
-        print("PrivateKey:\n", r.get('KeyMaterial', 'missing'))
-        print("FingerPrint:", r.get('KeyFingerprint', 'missing'))
+        ekp = client.create_key_pair(KeyName=name)
+        print("Created:", ekp.get('KeyName'))
+        print("PrivateKey:\n", ekp.get('KeyMaterial', 'missing'))
+        print("FingerPrint:", ekp.get('KeyFingerprint', 'missing'))
 
 
 def get_s3bucket_names():
@@ -53,18 +53,18 @@ def create_bucket(name):
     else:
         print("Creating S3bucket:", name)
         client = boto3.client('s3')
-        r = client.create_bucket(ACL='private',
-                                 Bucket=name,
-                                 CreateBucketConfiguration={
-                                  'LocationConstraint': 'EU'
-                                 })
-        print("Created:", r.get('Location', 'missing'))
+        stb = client.create_bucket(ACL='private',
+                                   Bucket=name,
+                                   CreateBucketConfiguration={
+                                       'LocationConstraint': 'EU'
+                                   })
+        print("Created:", stb.get('Location', 'missing'))
 
 
 def get_stack_names():
     """ Returns a list of CloudFormation Stack names """
     client = boto3.client('cloudformation')
-    stacks = client.list_stacks().get('StackSummaries',[])
+    stacks = client.list_stacks().get('StackSummaries', [])
     stacknames = []
     for stack in stacks:
         if 'DELETE' not in stack['StackStatus']:
@@ -96,24 +96,24 @@ def get_config(environmentname, configfile='deploy.conf'):
     configfile = os.path.join(absolut_pathname, configfile)
 
     if os.path.isfile(configfile):
-        cp = configparser.ConfigParser()
-        cp.read(configfile)
+        par = configparser.ConfigParser()
+        par.read(configfile)
         section = 'DEFAULT'
-        if environmentname and environmentname in cp:
+        if environmentname and environmentname in par:
             section = environmentname
-        cnfg['region'] = cp.get(section,
-                                'region',
-                                fallback=cnfg['region'])
-        cnfg['bucket_name'] = cp.get(section,
-                                     'bucket_name',
-                                     fallback=cnfg['bucket_name'])
+        cnfg['region'] = par.get(section,
+                                 'region',
+                                 fallback=cnfg['region'])
+        cnfg['bucket_name'] = par.get(section,
+                                      'bucket_name',
+                                      fallback=cnfg['bucket_name'])
 
-        cnfg['keypair_name'] = cp.get(section,
-                                      'keypair_name',
-                                      fallback=cnfg['keypair_name'])
-        cnfg['version'] = cp.get(section,
-                                 'version',
-                                 fallback='')
+        cnfg['keypair_name'] = par.get(section,
+                                       'keypair_name',
+                                       fallback=cnfg['keypair_name'])
+        cnfg['version'] = par.get(section,
+                                  'version',
+                                  fallback='')
     return cnfg
 
 
@@ -126,8 +126,8 @@ def get_status(environmentname):
                        'status':
                        cnfg['keypair_name'] in get_keypair_names()}
     stts['bucket_name'] = {'name': cnfg['bucket_name'],
-                        'status':
-                        cnfg['bucket_name'] in get_s3bucket_names()}
+                           'status':
+                           cnfg['bucket_name'] in get_s3bucket_names()}
 
     stts['stacks'] = []
     stacks = get_stack_names()
@@ -159,8 +159,8 @@ def get_deployed():
         for tagpair in tags:
             if 'environment' in tagpair.get('Key') \
                and not tagpair.get('Value') in dpld:
-                    dpld.appen(tagpair.get('Value'))
-                    break
+                dpld.append(tagpair.get('Value'))
+                break
     return dpld
 
 
@@ -190,10 +190,17 @@ def deploy(environment):
         Updates if already exists, otherwise creates
     """
     print("*** IMPLEMENT:",
-          "deployment of an environment")
+          "deployment of an environment:", environment)
 
 
-if __name__ == "__main__":
+def main():
+    """
+        Process command line arguments
+
+        Print simple help
+        Or call the appropiet function
+    """
+    prpr = pprint.PrettyPrinter(indent=3)
     # No option or help option
     if len(sys.argv) < 2 or "-h" in sys.argv[1]:
         print("Usage: deploy.py [option] <value>",
@@ -219,8 +226,7 @@ if __name__ == "__main__":
         elif "list-buckets" in sys.argv[1]:
             print("Bucket Names:", ", ".join(get_s3bucket_names()))
         elif "list-deployed" in sys.argv[1]:
-            pp = pprint.PrettyPrinter(indent=3)
-            pp.pprint(get_deployed())
+            prpr.pprint(get_deployed())
         elif "upload" in sys.argv[1]:
             upload()
         else:
@@ -233,9 +239,12 @@ if __name__ == "__main__":
         elif "create-bucket" in sys.argv[1]:
             create_bucket(sys.argv[2])
         elif "status" in sys.argv[1]:
-            pp = pprint.PrettyPrinter(indent=3)
-            pp.pprint(get_status(sys.argv[2]))
+            prpr.pprint(get_status(sys.argv[2]))
         elif "deploy" in sys.argv[1]:
             deploy(sys.argv[2])
         else:
             print("wrong option, see --help")
+
+
+if __name__ == "__main__":
+    main()
