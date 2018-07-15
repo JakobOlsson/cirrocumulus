@@ -1,0 +1,11 @@
+# Extends the default config for yaml linter
+
+extends: default
+
+rules:
+  line-length:
+    # change from error to warning in regards to 80 chars
+    max: 80
+    level: warning
+
+  indentation: {spaces: 2}
