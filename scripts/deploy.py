@@ -215,7 +215,7 @@ def upload(environment=None):
                 print("Uploading:", fil, "to", s3b)
                 # DONT use os.path.join since path names in target
                 # has to explicitly be /
-                client.upload_file(fil,
+                client.upload_file(os.path.join(pth, fil),
                                    s3b,
                                    "/".join((bas_pth, fil)))
     else:
