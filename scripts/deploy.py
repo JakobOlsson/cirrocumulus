@@ -234,8 +234,28 @@ def deploy(environment):
         Check if templats for version are aviable in bucket
         Updates if already exists, otherwise creates
     """
+    cfg = get_config(environment)
+    ver = cfg.get('version')
+    s3b = cfg.get('bucket_name')
+    kpn = cfg.get('keypair_name')
+    if ver != '' \
+            and s3b in get_s3bucket_names() \
+            and kpn in get_keypair_names():
+        print("We have config")
+        upload(environment)
+        client = boto3.client('cloudformation')
+        bas_tpl = "https://" + s3b + "s3.amazonaws.com/"
+
+    else:
+        print("Missing infrastructure or configuraiton",
+              "\nplease run:",
+              sys.argv[0],
+              "--status",
+              environment)
+        return False
     print("*** IMPLEMENT:",
           "deployment of an environment:", environment)
+    return True
 
 
 def main():
