@@ -13,6 +13,7 @@ import os
 import configparser
 import pprint
 import boto3
+import botocore
 
 
 def get_keypair_names():
@@ -174,8 +175,9 @@ def get_files(pth):
     """
     fls = []
     for fil in os.listdir(pth):
-        if os.path.isdir(fil):
-            for pth_fil in get_files(fil):
+        full_pth = os.path.join(pth, fil)
+        if os.path.isdir(full_pth):
+            for pth_fil in get_files(full_pth):
                 fls.append(os.path.join(fil, pth_fil))
         else:
             fls.append(fil)
@@ -201,23 +203,27 @@ def upload(environment=None):
         client = boto3.client('s3')
         # Find the cloudformation templates path relative to the script
         pth = os.path.abspath(os.path.dirname(sys.argv[0]))
-        pth = os.path.join(os.path.split(pth),
+        pth = os.path.join(os.path.split(pth)[0],
                            'cf')
         # Uploading files
         for fil in get_files(pth):
-            # checking tags doesnt seem to calculate a cost
-            # so we use it to se if an object already exists
-            if client.get_object_tagging(Bucket=s3b,
-                                         Key="/".join(bas_pth,
-                                                      fil)).get('VersionId'):
-                        print("Object exists:", fil, "in", s3b)
-            else:
-                print("Uploading:", fil, "to", s3b)
-                # DONT use os.path.join since path names in target
-                # has to explicitly be /
-                client.upload_file(os.path.join(pth, fil),
-                                   s3b,
-                                   "/".join((bas_pth, fil)))
+            # DONT use os.path.join since path names in target
+            # has to explicitly be /
+            key = "/".join((bas_pth, fil))
+            try:
+                # checking tags doesnt seem to calculate a cost
+                # so we use it to se if an object already exists
+                client.get_object_tagging(Bucket=s3b,
+                                          Key=key)
+                print("Object exists:", key, "in", s3b)
+            except botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == "NoSuchKey":
+                    print("Uploading:", key, "to", s3b)
+                    client.upload_file(os.path.join(pth, fil),
+                                       s3b,
+                                       key)
+                else:
+                    raise e
     else:
         print("Configured S3 bucket:",
               s3b,
