@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-    A tool for setting up infrastructure common resources
-    Setup a new environment
+    A tool for working with infrastructures resources
+
+    Setup common resources like S3 Bucket and KeyPairs
+
+    Setup a new environment or update existing environment
     Deploy a configuration for a given environment
-    Check current status of aviable deployment and resources
+    Check current status of deployments and resources
 """
 import sys
 import os
@@ -92,8 +95,8 @@ def get_config(environmentname, configfile='deploy.conf'):
                 "bucket_name": "cfg-bucket",
                 "keypair_name": "BastionKey",
            }
-    absolut_pathname = os.path.abspath(os.path.dirname(sys.argv[0]))
-    configfile = os.path.join(absolut_pathname, configfile)
+    abs_pth = os.path.abspath(os.path.dirname(sys.argv[0]))
+    configfile = os.path.join(abs_pth, configfile)
 
     if os.path.isfile(configfile):
         par = configparser.ConfigParser()
@@ -164,18 +167,60 @@ def get_deployed():
     return dpld
 
 
-def upload():
+def get_files(pth):
+    """
+        Get all the files, recursively for a given path - pth
+        returns them in a list with relative path to given path
+    """
+    fls = []
+    for fil in os.listdir(pth):
+        if os.path.isdir(fil):
+            for pth_fil in get_files(fil):
+                fls.append(os.path.join(fil, pth_fil))
+        else:
+            fls.append(fil)
+    return fls
+
+
+def upload(environment=None):
     """
         Upload cloudformation templates to configured s3 bucket
         Needs to get version somehow, git tag, or githash
     """
-    cnfg = get_config(None)
-    if cnfg['s3_bucket_name'] in get_s3bucket_names():
-        print("*** IMPLEMENT:",
-              "sync of cloudformation templates to s3 bucket/version")
+    cfg = get_config(environment)
+    ver = cfg.get('version')
+    s3b = cfg.get('bucket_name')
+    if s3b in get_s3bucket_names():
+        if s3b not in get_s3bucket_names():
+            print("Missing s3 bucket:",
+                  s3b,
+                  "- please create with --create-bucket",
+                  s3b)
+            return False
+        bas_pth = "" if ver == '' else ver
+        client = boto3.client('s3')
+        # Find the cloudformation templates path relative to the script
+        pth = os.path.abspath(os.path.dirname(sys.argv[0]))
+        pth = os.path.join(os.path.split(pth),
+                           'cf')
+        # Uploading files
+        for fil in get_files(pth):
+            # checking tags doesnt seem to calculate a cost
+            # so we use it to se if an object already exists
+            if client.get_object_tagging(Bucket=s3b,
+                                         Key="/".join(bas_pth,
+                                                      fil)).get('VersionId'):
+                        print("Object exists:", fil, "in", s3b)
+            else:
+                print("Uploading:", fil, "to", s3b)
+                # DONT use os.path.join since path names in target
+                # has to explicitly be /
+                client.upload_file(fil,
+                                   s3b,
+                                   "/".join((bas_pth, fil)))
     else:
         print("Configured S3 bucket:",
-              cnfg['s3_bucket_name'],
+              s3b,
               "is missing, please create with --create-bucket")
         return False
     return True
