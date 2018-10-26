@@ -10,8 +10,8 @@ pipeline {
                 echo 'Hello world!';
                 echo 'Now we will build';
                 script {
-                    scmVars = checkout(scm)
-                    println(scmVars)
+                    def scmVars = checkout(scm)
+                    echo "${scmVars}"
                 }
             }
         }
