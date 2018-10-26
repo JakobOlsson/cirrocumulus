@@ -15,6 +15,7 @@ pipeline {
         stage('Git describe') {
             steps {
                 sh 'git describe --all'
+             } {
                 def scmVars = checkout scm
                 print scmVars
             }
