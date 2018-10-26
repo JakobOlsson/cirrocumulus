@@ -3,4 +3,4 @@ version: 0.2
 phases:
   build:
     commands:
-       - python -c 'print("hello world 2")'
+       - python -c 'print("hello world from test again")'
