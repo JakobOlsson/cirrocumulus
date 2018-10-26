@@ -15,6 +15,9 @@ pipeline {
         stage('Git describe') {
             steps {
                 sh 'git describe --all'
+                final scmVars = checkout(scm)
+                print scmVars
+                
             }
         }
         stage('Codebuild') {
