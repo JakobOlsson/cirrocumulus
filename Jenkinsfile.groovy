@@ -3,8 +3,8 @@ pipeline {
     parameters {
         string(defaultValue: 'master', description: '', name: 'GitCommit')
     }
-    def scmVars = checkout scm
-    println scmVars
+    scmVars = checkout(scm)
+    echo "scmVars: ${scmVars}"
  
     stages {
         stage('Stage 1') {
