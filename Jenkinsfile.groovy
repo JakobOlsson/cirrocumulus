@@ -3,21 +3,14 @@ pipeline {
     parameters {
         string(defaultValue: 'master', description: '', name: 'GitCommit')
     }
-
+    def scmVars = checkout scm
+    print scmVars
  
     stages {
         stage('Stage 1') {
             steps {
                 echo 'Hello world!';
                 echo 'Now we will build';
-            }
-        }
-        stage('Git describe') {
-            steps {
-                sh 'git describe --all'
-             } {
-                def scmVars = checkout scm
-                print scmVars
             }
         }
         stage('Codebuild') {
