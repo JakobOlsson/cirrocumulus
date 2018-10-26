@@ -11,6 +11,7 @@ pipeline {
                 echo 'Now we will build';
                 script {
                     scmVars = checkout(scm)
+                    println(scmVars)
                 }
             }
         }
