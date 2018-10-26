@@ -9,10 +9,11 @@ pipeline {
             steps {
                 echo 'Hello world!';
                 echo 'Now we will build';
-                script {
+                echo "Branhc ${BRANCH_NAME}"
+                /* script {
                     def scmVars = checkout(scm)
                     echo "${scmVars}"
-                }
+                } */
             }
         }
         stage('Codebuild') {
