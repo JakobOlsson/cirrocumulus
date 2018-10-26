@@ -9,7 +9,7 @@ pipeline {
         }
         stage('Codebuild') {
             steps {
-                awsCodeBuild credentialsId: 'codebuild', credentialsType: 'jenkins', sourceControlType: 'project';
+                awsCodeBuild credentialsId: 'codebuild', credentialsType: 'jenkins', projectName: 'jenkins-test', sourceControlType: 'project';
             }
             
         }
