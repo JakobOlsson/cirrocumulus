@@ -18,7 +18,7 @@ pipeline {
                              credentialsType: 'jenkins',
                              projectName: 'jenkins-test', 
                              sourceControlType: 'project',
-                             sourceVersion: 'master',
+                             sourceVersion: '${params.GitCommit}',
                              region: 'eu-central-1';
             }
             
