@@ -13,6 +13,7 @@ pipeline {
                              credentialsType: 'jenkins',
                              projectName: 'jenkins-test', 
                              sourceControlType: 'project',
+                             sourceVersion: 'master',
                              region: 'eu-central-1';
             }
             
