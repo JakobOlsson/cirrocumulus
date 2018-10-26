@@ -6,5 +6,9 @@ pipeline {
                 echo 'Hello world!' 
             }
         }
+        stage('Codebuild') {
+            awsCodeBuild credentialsId: 'codebuild', credentialsType: 'jenkins', sourceControlType: 'project'
+        }
+
     }
 }
