@@ -3,11 +3,15 @@ pipeline {
     stages {
         stage('Stage 1') {
             steps {
-                echo 'Hello world!' 
+                echo 'Hello world!';
+                echo 'Now we will build';
             }
         }
         stage('Codebuild') {
-            awsCodeBuild credentialsId: 'codebuild', credentialsType: 'jenkins', sourceControlType: 'project'
+            steps {
+                awsCodeBuild credentialsId: 'codebuild', credentialsType: 'jenkins', sourceControlType: 'project';
+            }
+            
         }
 
     }
