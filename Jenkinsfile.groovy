@@ -12,6 +12,11 @@ pipeline {
                 echo 'Now we will build';
             }
         }
+        stage('Git describe') {
+            steps {
+                sh(returnStdout: true, script: "git tag --sort version:refname | tail -1").trim()
+            }
+        }
         stage('Codebuild') {
             steps {
                 awsCodeBuild credentialsId: 'codebuild', 
