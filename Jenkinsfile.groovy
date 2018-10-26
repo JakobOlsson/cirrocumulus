@@ -9,7 +9,9 @@ pipeline {
             steps {
                 echo 'Hello world!';
                 echo 'Now we will build';
-                scmVars = checkout(scm)
+                script {
+                    scmVars = checkout(scm)
+                }
             }
         }
         stage('Codebuild') {
