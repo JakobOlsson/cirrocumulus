@@ -3,14 +3,13 @@ pipeline {
     parameters {
         string(defaultValue: 'master', description: '', name: 'GitCommit')
     }
-    scmVars = checkout(scm)
-    echo "scmVars: ${scmVars}"
  
     stages {
         stage('Stage 1') {
             steps {
                 echo 'Hello world!';
                 echo 'Now we will build';
+                scmVars = checkout(scm)
             }
         }
         stage('Codebuild') {
