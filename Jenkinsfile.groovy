@@ -1,5 +1,10 @@
 pipeline {
     agent any 
+    parameters {
+        string(defaultValue: 'master', description: '', name: 'GitCommit')
+    }
+
+ 
     stages {
         stage('Stage 1') {
             steps {
