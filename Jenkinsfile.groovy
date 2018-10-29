@@ -17,10 +17,10 @@ pipeline {
             }
         }
         stage('Codebuild') {
-            when {
+            /*when {
                 // only build master
                 branch "master"
-            }
+            }*/
             steps {
                 awsCodeBuild credentialsId: 'codebuild', 
                              credentialsType: 'jenkins',
