@@ -19,15 +19,16 @@ pipeline {
                     echo "${scmVars}"
                 } */
                 echo "Git Commit: ${GIT_COMMIT}"
+
                 script {
                     if (params.GitCommit == "master") {
                         println "if statement test"
                         println "${GIT_COMMIT}"
-                        params.GitCommit = GIT_COMMIT
+                        GitCommit = GIT_COMMIT
                     }
                 }
 
-                echo "Git Commit Params: ${params.GitCommit}"
+                echo "Git Commit Params: ${GitCommit}"
                 echo "Git Branch: ${GIT_BRANCH}"
             }
         }
@@ -41,7 +42,7 @@ pipeline {
                              credentialsType: 'jenkins',
                              projectName: 'jenkins-test', 
                              sourceControlType: 'project',
-                             sourceVersion: params.GitCommit,
+                             sourceVersion: GitCommit,
                              region: 'eu-central-1';
             }
             
