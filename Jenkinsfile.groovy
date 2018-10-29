@@ -18,6 +18,9 @@ pipeline {
                     def scmVars = checkout(scm)
                     echo "${scmVars}"
                 } */
+                echo "Git Commit: ${GIT_COMMIT}"
+                echo "Git Commit Params: ${params.GitCommit}"
+                echo "Git Branch: ${GIT_BRANCH}"
             }
         }
         stage('Codebuild') {
