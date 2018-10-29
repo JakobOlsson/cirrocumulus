@@ -22,7 +22,8 @@ pipeline {
                 script {
                     if (params.GitCommit == "master") {
                         println "if statement test"
-                        params.GitCommit = env.GIT_COMMIT
+                        println "${GIT_COMMIT}"
+                        params.GitCommit = GIT_COMMIT
                     }
                 }
 
