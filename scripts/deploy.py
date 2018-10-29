@@ -16,29 +16,22 @@ import boto3
 import botocore
 
 
-def get_keypair_names(environment):
+def get_keypair_names():
     """ Returns a list of EC2 KeyPair Names """
-    cfg = get_config(environment)
-    reg = cfg.get('region')
-    client = boto3.client('ec2', region_name=reg)
+    client = boto3.client('ec2')
     keypairs = client.describe_key_pairs().get('KeyPairs')
     if keypairs:
         return [x['KeyName'] for x in keypairs]
     return []
 
 
-def create_keypair(environment, name):
+def create_keypair(name):
     """ Create an EC2 KeyPair with name - if it doesn't already exist """
-    cfg = get_config(environment)
-    reg = cfg.get('region')
-    kpn = cfg.get('keypair_name')
-    if kpn == '':
-        print('ERROR: No keypair name configured')
-    if name in get_keypair_names(environment):
+    if name in get_keypair_names():
         print("Key:", name, "already exists")
     else:
         print("Creating key:", name)
-        client = boto3.client('ec2',region_name=reg)
+        client = boto3.client('ec2')
         ekp = client.create_key_pair(KeyName=name)
         print("Created:", ekp.get('KeyName'))
         print("PrivateKey:\n", ekp.get('KeyMaterial', 'missing'))
@@ -72,11 +65,9 @@ def create_bucket(name):
         print("Created:", stb.get('Location', 'missing'))
 
 
-def get_stack_names(environment):
+def get_stack_names():
     """ Returns a list of CloudFormation Stack names """
-    cfg = get_config(environment)
-    reg = cfg.get('region')
-    client = boto3.client('cloudformation', region_name=reg)
+    client = boto3.client('cloudformation')
     stacks = client.list_stacks().get('StackSummaries', [])
     stacknames = []
     for stack in stacks:
@@ -85,11 +76,9 @@ def get_stack_names(environment):
     return stacknames
 
 
-def get_stack_info(environment, name):
+def get_stack_info(name):
     """ Get a dictonary object with detailed info for stack with name """
-    cfg = get_config(environment)
-    reg = cfg.get('region')
-    client = boto3.client('cloudformation', region_name=reg)
+    client = boto3.client('cloudformation')
     stackinfo = client.describe_stacks(StackName=name).get('Stacks')
     if stackinfo is not None:
         return stackinfo[0]
@@ -139,17 +128,17 @@ def get_status(environmentname):
     stts['region'] = cnfg['region']
     stts['keypair'] = {'name': cnfg['keypair_name'],
                        'status':
-                       cnfg['keypair_name'] in get_keypair_names(environmentname)}
+                       cnfg['keypair_name'] in get_keypair_names()}
     stts['bucket_name'] = {'name': cnfg['bucket_name'],
                            'status':
                            cnfg['bucket_name'] in get_s3bucket_names()}
 
     stts['stacks'] = []
-    stacks = get_stack_names(environmentname)
+    stacks = get_stack_names()
     for stack in stacks:
         if environmentname not in stack:
             continue
-        info = get_stack_info(environmentname, stack)
+        info = get_stack_info(stack)
         stts['stacks'].append({'name':
                                stack,
                                'satus':
@@ -164,12 +153,12 @@ def get_status(environmentname):
 def get_deployed():
     """ Returns a list of deployed environments """
     dpld = []
-    stacks = get_stack_names('DEFAULT')
+    stacks = get_stack_names()
     for stack in stacks:
         # Don't check tangled stacks
         if '-' in stack:
             continue
-        info = get_stack_info('DEFAULT', stack)
+        info = get_stack_info(stack)
         tags = info.get('Tags')
         for tagpair in tags:
             if 'environment' in tagpair.get('Key') \
@@ -255,13 +244,12 @@ def deploy(environment):
     ver = cfg.get('version')
     s3b = cfg.get('bucket_name')
     kpn = cfg.get('keypair_name')
-    reg = cfg.get('region')
     if ver != '' \
             and s3b in get_s3bucket_names() \
-            and kpn in get_keypair_names(environment):
+            and kpn in get_keypair_names():
         print("We have config")
         upload(environment)
-        client = boto3.client('cloudformation', region_name=reg)
+        client = boto3.client('cloudformation')
         bas_tpl = "https://" + s3b + "s3.amazonaws.com/"
 
     else:
@@ -292,19 +280,21 @@ def main():
               "\n", "It reads it's configuration form deploy.conf",
               "\n\n", "Options",
               "\n", " --help, -h\tPrints this help message"
-              "\n", " --list-keys environment\tList existing EC2 Key Pair Names for environment"
-              "\n", " --create-key environment\tCreate a EC2 Key Pair"
+              "\n", " --list-keys\tList existing EC2 Key Pair Names"
+              "\n", " --create-key name\tCreate a EC2 Key Pair"
               "\n", " --list-buckets\tList existing s3 buckets"
               "\n", " --create-bucket name\tCreate a s3 bucket"
               "\n", " --upload\tUpload cloudformation scripts to s3 bucket"
-              "\n", " --status environment\tStatus for given environment"
+              "\n", " --status name\tStatus for given environment"
               "\n", " --list-deployed\tlist deployed environments"
-              "\n", " --deploy environmentname\tDeploy/Update given environment")
+              "\n", " --deploy name\tDeploy/Update given environment")
 
     # Single option with no value
     # Or option requiring a missing value
     elif len(sys.argv) == 2:
-        if "list-buckets" in sys.argv[1]:
+        if "list-keys" in sys.argv[1]:
+            print("Key Names:", ", ".join(get_keypair_names()))
+        elif "list-buckets" in sys.argv[1]:
             print("Bucket Names:", ", ".join(get_s3bucket_names()))
         elif "list-deployed" in sys.argv[1]:
             prpr.pprint(get_deployed())
@@ -317,8 +307,6 @@ def main():
     else:
         if "create-key" in sys.argv[1]:
             create_keypair(sys.argv[2])
-        if "list-keys" in sys.argv[1]:
-            print("Key Names:", ", ".join(get_keypair_names(sys.argv[2])))
         elif "create-bucket" in sys.argv[1]:
             create_bucket(sys.argv[2])
         elif "status" in sys.argv[1]:
