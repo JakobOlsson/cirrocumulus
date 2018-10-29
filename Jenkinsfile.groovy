@@ -21,10 +21,10 @@ pipeline {
             }
         }
         stage('Codebuild') {
-            /*when {
+            when {
                 // only build master
                 branch "master"
-            }*/
+            }
             steps {
                 awsCodeBuild credentialsId: 'codebuild', 
                              credentialsType: 'jenkins',
@@ -35,6 +35,14 @@ pipeline {
             }
             
         }
+        stage("Deploy feature") {
+          when {
+              expression { test[0].toLowerCase() == "feature" }
+          }
+          steps {
+            name = test[1].toLowerCase()
+            echo "Deploy feature branch: ${name}"
+          }
 
     }
 }
