@@ -10,6 +10,10 @@ pipeline {
                 echo 'Hello world!';
                 echo 'Now we will build';
                 echo "Branhc ${BRANCH_NAME}"
+                script {
+                  test = BRANCH_NAME.split('/')
+                }
+                echo "TEST: ${test}"
                 /* script {
                     def scmVars = checkout(scm)
                     echo "${scmVars}"
