@@ -1,7 +1,7 @@
 pipeline {
     agent any 
     parameters {
-        string(defaultValue: '', description: '', name: 'GitCommit')
+        string(defaultValue: 'master', description: '', name: 'GitCommit')
     }
  
     stages {
@@ -20,7 +20,7 @@ pipeline {
                 } */
                 echo "Git Commit: ${GIT_COMMIT}"
                 script {
-                    if (params.GitCommit == "") {
+                    if (params.GitCommit == "master") {
                         params.GitCommit = GIT_COMMIT
                     }
                 }
