@@ -43,7 +43,7 @@ pipeline {
                              projectName: 'jenkins-test', 
                              sourceControlType: 'project',
                              sourceVersion: GitCommit,
-                             envVariables: "[  { TEST, ${test[0]} ]",
+                             envVariables: "[  { TEST, ${test} ]",
                              region: 'eu-central-1';
             }
             
