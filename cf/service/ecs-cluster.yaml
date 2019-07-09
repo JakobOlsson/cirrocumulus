@@ -2,18 +2,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Creates
-   - A ECS Fargate Cluster
-   - A Application Load Balancer
+   - A ECS Cluster
+   - A Application Load Balancer (Public)
    - Dummy Target Group
    - Security Groups
    - Cloudwatch Log Group
 
 Parameters:
-  TemplateBucketURL:
-    Description: HTTPS URL to S3 Bucket storing the templates used.
-    Type: String
-    Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
-
   EnvironmentName:
     Description: which environment to spin-up
     Type: String
@@ -51,10 +46,7 @@ Resources:
     Properties:
       Parameters:
         ClusterName: !Sub ${EnvironmentName}-${ClusterName}
-      Tags:
-        -
-          Key: Environment
-          Value: !FindInMap [EnvironmentMap, !Ref EnvironmentMap, Name]
+
   # Common CloudWatch Log Group
   ClusterLogGrp:
     Type: AWS::Logs::LogGroup
@@ -191,11 +183,11 @@ Outputs:
     Value: !GetAtt 'PublicLoadBalancer.CanonicalHostedZoneID'
   PublicLoadBalancer:
     Description: The full name of the public loadbalancer
-    Value: !GetAtt PublicLoadBalancer.LoadBalancerFullName
+    Value: !GetAtt 'PublicLoadBalancer.LoadBalancerFullName'
   PublicHttpListener:
     Description:
       The arn for the HTTP listener on the loadbalancer
-    Value: !Ref PublicLoadBalancerListener
+    Value: !Ref 'PublicLoadBalancerListener'
   SecurityGroup:
     Description: A security group used to
                  allow containers to receive traffic
@@ -203,6 +195,6 @@ Outputs:
   AlbSecurityGroup:
     Description: A security group used for the public loadbalancer
     Value: !Ref 'PublicLoadBalancerSG'
-  LogGroupName:
+  LogGroup:
     Description: The CloudWatch Log group name for this cluster
     Value: !Ref 'ClusterLogGrp'

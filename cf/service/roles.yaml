@@ -1,13 +1,9 @@
 ---
+AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   The IAM roles for task
 
 Parameters:
-  TemplateBucketURL:
-    Description: HTTPS URL to S3 Bucket storing the templates used.
-    Type: String
-    Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
-
   EnvironmentName:
     Description: which environment to spin-up
     Type: String

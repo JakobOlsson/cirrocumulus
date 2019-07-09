@@ -5,11 +5,6 @@ Description: >
   but accessible via a public load balancer.
 
 Parameters:
-  TemplateBucketURL:
-    Description: HTTPS URL to S3 Bucket storing the templates used.
-    Type: String
-    Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
-
   EnvironmentName:
     Description: which environment to spin-up
     Type: String
