@@ -1,0 +1,179 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Deploy a service on AWS Fargate, hosted in a private subnet,
+  but accessible via a public load balancer.
+
+Parameters:
+  TemplateBucketURL:
+    Description: HTTPS URL to S3 Bucket storing the templates used.
+    Type: String
+    Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
+
+  EnvironmentName:
+    Description: which environment to spin-up
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - tst
+      - stg
+      - prd
+      - oth
+
+  ClusterName:
+    Type: String
+    Description:
+      Name of the Target cluster to run the service in
+    Default: ""
+
+  SecurityGroup:
+    Description:
+      The Security Group
+    Type: String
+    Default: ""
+
+  ServiceName:
+    Description:
+      A name for the service
+    Type: String
+    Default: "sampple-service"
+
+  Path:
+    Type: String
+    Default: "*"
+    Description:
+      A path on the public load balancer that this service
+      should be connected to. Use * to send all load balancer
+      traffic to this service.
+
+  Priority:
+    Description:
+      The priority for the routing rule added to the load balancer.
+      This only applies if your have multiple services which have
+      been assigned to different paths on the load balancer.
+    Type: Number
+    Default: 100
+
+  DesiredCount:
+    Description:
+      How many copies of the service task to run
+    Type: Number
+    Default: 2
+
+  Role:
+    Description:
+      (Optional) An IAM role to give the service's tasks/containers
+      if the code within needs to access other AWS resources
+      like S3 buckets, DynamoDB tables, etc
+    Type: String
+    Default: ""
+
+  ContainerName:
+    Description:
+      The name of the main container in the task
+    Type: String
+    Default: main
+
+  ContainerPort:
+    Description:
+      The port of the main container in the task
+    Type: String
+    Default: 80
+
+  HealthEndpoint:
+    Description:
+      The endpoint to check the status for deployed service
+    Type: String
+    Default: /
+
+  HttpListener:
+    Description:
+      The listner arn from the application loadbalancer
+      to add a forward rule to the target
+    Type: String
+    Default: ""
+
+Resources:
+  # A target group. This is used for keeping track of all the tasks, and
+  # what IP addresses / port numbers they have. You can query it yourself,
+  # to use the addresses yourself, but most often this target group is just
+  # connected to an application load balancer, or network load balancer, so
+  # it can automatically distribute traffic across all the targets.
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: !Ref 'HealthEndpoint'
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      Name:
+        !Sub "${EnvironmentName}-${ServiceName}"
+      Port:
+        !Ref ContainerPort
+      TargetType:
+        ip
+      Matcher:
+        HttpCode: '200-399'
+      Protocol: HTTP
+      UnhealthyThresholdCount: 3
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}:vpc:id"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 35
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-${ServiceName}"
+
+  # The service. The service is a resource which allows you to run multiple
+  # copies of a type of task, and gather up their logs and metrics, as well
+  # as monitor the number of running tasks and replace any that have crashed
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub "${ServiceName}"
+      LaunchType: FARGATE
+      Cluster: !Ref ClusterName
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      HealthCheckGracePeriodSeconds: 30
+      DesiredCount: 1
+      TaskDefinition: !Ref TaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref SecurityGroup
+          Subnets:
+            Fn::Split:
+              - ','
+              - Fn::ImportValue:
+                !Sub "${EnvironmentName}:vpc:subnets:private"
+      LoadBalancers:
+        -  
+          ContainerName: !Ref ContainerName
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref 'TargetGroup'
+
+
+  # Create a rule on the load balancer for routing traffic to the target group
+  LoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values: [!Ref 'Path']
+      ListenerArn:
+        !Ref 'HttpListener'
+      Priority: !Ref 'Priority'
+
+Outputs:
+  TargetGroup:
+    Description: The full name of the target group
+    Value: !GetAtt TargetGroup.TargetGroupFullName

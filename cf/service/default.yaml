@@ -1,0 +1,94 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Creates
+   - A ECS Fargate Cluster
+   - A ECS Service running in fargate
+   - A ECS Task
+   - A Application Load Balancer
+   - IAM Role
+   - Security Groups
+
+Parameters:
+  TemplateBucketURL:
+    Description: HTTPS URL to S3 Bucket storing the templates used.
+    Type: String
+    Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
+
+  EnvironmentName:
+    Description: which environment to spin-up
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - tst
+      - stg
+      - prd
+      - oth
+
+Mappings:
+  EnvironmentMap:
+    dev:
+      Name: development
+    stg:
+      Name: staging
+    prd:
+      Name: production
+    tst:
+      Name: test
+    tst:
+      Name: other
+
+Resources:
+  Cluster:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${TemplateBucketURL}ecs-cluster.yaml
+      Parameters:
+        EnvironmentName: !Ref 'EnvironmentName'
+        ClusterName: "hellocluster"
+      Tags:
+        -
+          Key: Environment
+          Value: !FindInMap [EnvironmentMap, !Ref EnvironmentMap, Name]
+
+  Roles:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${TemplateBucketURL}roles.yaml
+      Parameters:
+        EnvironmentName: !Ref 'EnvironmentName'
+        TaskName: "hellotask"
+      Tags:
+        -
+          Key: Environment
+          Value: !FindInMap [EnvironmentMap, !Ref EnvironmentMap, Name]
+  
+  TaskDefinition:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${TemplateBucketURL}ecs-task.yaml
+      Parameters:
+        EnvironmentName: !Ref 'EnvironmentName'
+        TaskName: "hellotask"
+        TaskRole: !GetAtt Roles.Output.TaskRole
+        LogGroup: !GetAtt Cluster.Outouts.LogGroup
+      Tags:
+        -
+          Key: Environment
+          Value: !FindInMap [EnvironmentMap, !Ref EnvironmentMap, Name]
+  Service:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub ${TemplateBucketURL}ecs-service.yaml
+      Parameters:
+        EnvironmentName: !Ref 'EnvironmentName'
+        ServiceName: "helloservice"
+        ClusterName: !GetAtt Cluster.Outputs.ClusterName
+        TaskDefinition: !GetAtt TaskDefinition.Outputs.TaskDefinition
+        ContainerPort: !GetAtt TaskDefinition.Outputs.ContainerPort
+        ContainerName: !GetAtt TaskDefinition.Outputs.ContainerName
+        SecurityGroup: !GetAtt Cluster.Outputs.SecurityGroup
+        Role: !GetAtt Roles.Outputs.TaskRole
+        HttpListener: !Gett Cluster.Outputs.PublicHttpListener
+

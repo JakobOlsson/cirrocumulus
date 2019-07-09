@@ -1,0 +1,120 @@
+---
+Description: >
+  The IAM roles for task
+
+Parameters:
+  TemplateBucketURL:
+    Description: HTTPS URL to S3 Bucket storing the templates used.
+    Type: String
+    Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
+
+  EnvironmentName:
+    Description: which environment to spin-up
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - tst
+      - stg
+      - prd
+      - oth
+
+  TaskName:
+    Description:
+      Name of the task definition
+    Type: String
+    Default: "sample-task-definition"
+
+Mappings:
+  EnvironmentMap:
+    dev:
+      Name: development
+    stg:
+      Name: staging
+    prd:
+      Name: production
+    tst:
+      Name: test
+    tst:
+      Name: other
+
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      # It is good practice to add region to your role names
+      # To distinguish them from each other in your account
+      # since iam roles live Globaly in your account
+      RoleName:
+        !Sub "${EnvironmentName}-taskrole-${TaskName}-${AWS::Region}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - 'ec2.amazonaws.com'
+                - 'ecs-tasks.amazonaws.com'
+                - 'batch.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: "/"
+      Policies:
+        - PolicyName: ecr-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  # Allow the ECS Tasks to download images from ECR
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:BatchGetImage'
+                Resource: "*"
+        - PolicyName: s3-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  # Access to s3 buckets
+                  - 's3:GetObject*'
+                  - 's3:GetEcryptionConfiguration'
+                  - 's3:Listbucket'
+                Resource: "*"
+        - PolicyName: log-access
+          # Gives access to Create log group & stream if not exists
+          # and push new logs if already not there
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogStream'
+                  - 'logs:GetLogEvents'
+                  - 'logs:PutLogEvents'
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:DescribeLogStreams'
+                  - 'logs:PutRetentionPolicy'
+                  - 'logs:PutMetricFilter'
+                  - 'logs:CreateLogGroup'
+                Resource: "*"
+        - PolicyName: ssm-access
+          # Needed for SSM Agent
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ssm:DescribeParameters'
+                  - 'ssm:GetParameters'
+                  - 'ssm:GetParametersByPath'
+                Resource: "*"
+Outputs:
+  TaskRole:
+    Description: >
+      The Role to Assume for ECS Tasks 
+      Gives Access To S3, parameter store, ECR docker repos, Cloudwatch Logs
+    Value: !GetAtt TaskRole.Arn

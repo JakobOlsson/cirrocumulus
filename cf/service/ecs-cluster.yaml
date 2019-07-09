@@ -1,0 +1,208 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Creates
+   - A ECS Fargate Cluster
+   - A Application Load Balancer
+   - Dummy Target Group
+   - Security Groups
+   - Cloudwatch Log Group
+
+Parameters:
+  TemplateBucketURL:
+    Description: HTTPS URL to S3 Bucket storing the templates used.
+    Type: String
+    Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
+
+  EnvironmentName:
+    Description: which environment to spin-up
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - tst
+      - stg
+      - prd
+      - oth
+
+  ClusterName:
+    Description:
+      Name of the cluster
+    Type: String
+    Default: "sample-cluster-name"
+
+Mappings:
+  EnvironmentMap:
+    dev:
+      Name: development
+    stg:
+      Name: staging
+    prd:
+      Name: production
+    tst:
+      Name: test
+    tst:
+      Name: other
+
+Resources:
+  # The Basic ECS Cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      Parameters:
+        ClusterName: !Sub ${EnvironmentName}-${ClusterName}
+      Tags:
+        -
+          Key: Environment
+          Value: !FindInMap [EnvironmentMap, !Ref EnvironmentMap, Name]
+  # Common CloudWatch Log Group
+  ClusterLogGrp:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Join:
+          - '/'
+          - - !Ref 'EnvironmentName'
+            - 'ECS-clusters'
+            - !Ref 'ClusterName'
+      RetentionInDays: 90
+  
+  # Basic Security Groups
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${EnvironmentName}-ecs-${ClusterName}-sg"
+      GroupDescription: Acces to the ECS hosts that run containers
+      VpcId: !Ref 'VPCid'
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-ecs-${ClusterName}-sg"
+  SecurityGroupIngressFromSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroup'
+      IpProtocol: '-1'
+      SourceSecurityGroupId: !Ref 'SecurityGroup'
+  SecurityGroupIngressFromSSH:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroup'
+      IpProtocol: 'tcp'
+      FromPort: 22
+      ToPort: 22
+      CidrIp: 0.0.0.0/0
+  SecurityGroupIngressFromPublicALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'SecurityGroup'
+      IpProtocol: '-1'
+      SourceSecurityGroupId: !Ref 'PublicLoadBalancerSG'
+
+  # Create a Internet Facing Appliaction Load Balancer
+  # Attach a Default Target Group with no targets 
+  # Default Target Group Has no targets and gives a default 503
+  # This is since loadbalancer needs at lest one target
+  PublicLoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${EnvironmentName}-public-alb-${ClusterName}-sg"
+      GroupDescription: Access to the public facing load balancer
+      VpcId: !Ref 'VPCid'
+      SecurityGroupIngress:
+        # Allow Access to ALB from anywhere
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-public-alb-${ClusterName}-sg"
+  # Our public facing ALB with Public IP that DNS resolves to
+  PublicLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${EnvironmentName}-${ClusterName}-PubLB"
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        # Default timeout before client connection closes is 60sec
+        # mostly used on upgrading
+        - Key: idle_timeout.timeout_seconds
+          Value: 30
+      Subnets:
+        Fn::Split:
+          - ','
+          - Fn::ImportValue:
+            !Sub "${EnvironmentName}:vpc:subnets:public"
+      SecurityGroups: 
+        - !Ref 'PublicLoadBalancerSG']
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-${ClusterName}-PubLB"
+
+  # A dummy target group is used to setup the ALB to just drop traffic
+  # initially, before any real service target groups have been added.
+  DummyTargetGroupPublic:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Name: !Sub "${EnvironmentName}-${ClusterName}-drop-1"
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref 'VPCid'
+  PublicLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - PublicLoadBalancer
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref 'DummyTargetGroupPublic'
+          Type: 'forward'
+      LoadBalancerArn: !Ref 'PublicLoadBalancer'
+      Port: 80
+      Protocol: HTTP
+
+  # PublicLoadBalancerHTTPSListener:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   Condition: GotCertificateArn
+  #   DependsOn:
+  #     - PublicLoadBalancer
+  #   Properties:
+  #     DefaultActions:
+  #       - TargetGroupArn: !Ref 'DummyTargetGroupPublic'
+  #         Type: 'forward'
+  #     LoadBalancerArn: !Ref 'PublicLoadBalancer'
+  #     Port: 443
+  #     Protocol: HTTPS
+  #     Certificates:
+  #       - CertificateArn: !Ref 'CertificateArn'
+
+Outputs:
+  ClusterName:
+    Description: The Name of the ECS Cluster
+    Value: !Ref 'ECSCluster'
+  ExternalDnsName:
+    Description: The dns name of the external load balancer
+    Value: !GetAtt 'PublicLoadBalancer.DNSName'
+  LoadBalancerCanonicalId:
+    Description: The canonical id of the load balancer
+    Value: !GetAtt 'PublicLoadBalancer.CanonicalHostedZoneID'
+  PublicLoadBalancer:
+    Description: The full name of the public loadbalancer
+    Value: !GetAtt PublicLoadBalancer.LoadBalancerFullName
+  PublicHttpListener:
+    Description:
+      The arn for the HTTP listener on the loadbalancer
+    Value: !Ref PublicLoadBalancerListener
+  SecurityGroup:
+    Description: A security group used to
+                 allow containers to receive traffic
+    Value: !Ref 'SecurityGroup'
+  AlbSecurityGroup:
+    Description: A security group used for the public loadbalancer
+    Value: !Ref 'PublicLoadBalancerSG'
+  LogGroupName:
+    Description: The CloudWatch Log group name for this cluster
+    Value: !Ref 'ClusterLogGrp'

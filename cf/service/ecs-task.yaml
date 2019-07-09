@@ -1,0 +1,139 @@
+---
+Description: >
+  Creates
+   - A ECS Task Definition
+
+Parameters:
+  TemplateBucketURL:
+    Description: HTTPS URL to S3 Bucket storing the templates used.
+    Type: String
+    Default: https://s3-eu-west-1.amazonaws.com/<bucket-name>/
+
+  EnvironmentName:
+    Description: which environment to spin-up
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - tst
+      - stg
+      - prd
+      - oth
+
+  TaskName:
+    Description:
+      Name of the task definition
+    Type: String
+    Default: "sample-task-definition"
+    
+  TaskRole:
+    Description:
+      IAM Role ARN
+    Type: String
+    Default: ""
+
+  LogGroup:
+    Description:
+      The CloudWatch Log group to put log streams in to
+    Type: String
+    Default: /default
+
+  DockerImgUrl:
+    Description:
+      The url to the docker image to run
+    Type: String
+    Default: nginxdemos/hello
+
+  ContainerPort:
+    Description:
+      The port the container recives traffic on
+    Type: Number
+    Default: 80
+
+  ContainerName:
+    Description:
+      The Name of the container definition
+      inside the task defintion
+    Type: String
+    Default: main
+
+
+Mappings:
+  EnvironmentMap:
+    dev:
+      Name: development
+    stg:
+      Name: staging
+    prd:
+      Name: production
+    tst:
+      Name: test
+    tst:
+      Name: other
+
+
+Conditions:
+  # Check if we have a defined IAM Role
+  NoRoleDefined: !Equals [!Ref TaskRole, ""]
+
+
+Resources:
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Name: !Sub ${EnvironmentName}-${TaskName}
+      RequiresCompatibilities:
+        - "FARGATE"
+        - "EC2"
+      ContainerDefinitions:
+        -
+          Name: !Ref ContainerName
+          Image: !Ref DockerImgUrl
+          Cpu: "1024"
+          Memory: "2048"
+          Essential: "true"
+          PortMappings:
+            - ContainerPort: !Ref 'ContainerPort'
+              Protocol: "tcp"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref 'LogGroup'
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: !Ref 'TaskName'
+
+      Cpu: "1024"
+      ExecutionRoleArn:
+        Fn::If:
+          - 'NoRoleDefined'
+          - !Ref AWS::NoValue
+          - !Ref TaskRole
+      Family: String
+      Memory: "2048"
+      NetworkMode: awsvpc
+      TaskRoleArn: 
+        Fn::If:
+          - 'NoRoleDefined'
+          - !Ref AWS::NoValue
+          - !Ref TaskRole
+      Tags:
+        -
+          Key: Environment
+          Value: !FindInMap [EnvironmentMap, !Ref EnvironmentMap, Name]
+        -
+          Key: Name
+          Value: !Sub ${EnvironmentName}-${TaskName}
+
+Outputs:
+  TaskDefinition:
+    Description:
+      The ecs task defintion
+    Value: !Ref TaskDefinition
+  ContainerName:
+    Description:
+      The name of the main container in the task
+    Value: !Ref ContainerName
+  ContainerPort:
+    Description:
+      The port of the main container in the task
+    Value: !Ref ContainerPort
