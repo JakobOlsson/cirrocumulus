@@ -1,0 +1,185 @@
+---
+Description: >
+  A Simple lambda that performance a http request
+  to given url as env variable or via json request
+  It runs from inside a vpc subnet
+
+Parameters:
+  FunctionName:
+    Description:
+      Name of the function
+    Type: String
+    Default: simple_request_tester
+
+  SecurityGroup:
+    Description:
+      The security group the lambda will be
+      given when running inside a VPC subnet
+    Type: AWS::EC2::SecurityGroup::Id
+
+  SubnetId:
+    Description:
+      A VPC Subnet, private or public
+      that the lambda will run inside from
+    Type: AWS::EC2::Subnet::Id
+
+Resources:
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      # It is good practice to add region to your role names
+      # To distinguish them from each other in your account
+      # since iam roles live Globaly in your account
+      RoleName: !Sub ${EnvironmentName}-${FunctionName}-lambda-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: s3-access
+          # Access to s3 buckets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - "s3:GetObject*"
+                  - "s3:GetEcryptionConfiguration"
+                  - "s3:Listbucket"
+                Resource: "*"
+        - PolicyName: ec2-access
+          # Gives acces to ElasticIp and Status
+          # this is so the lambda can attach vpc NIC
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - "ec2:CreateNetworkInterface"
+                  - "ec2:DescribeNetworkInterfaces"
+                  - "ec2:DescribeNetworkInterfaceAttribute"
+                  - "ec2:DescribeNetworkInterfacePermissions"
+                  - "ec2:AttachNetworkInterface"
+                  - "ec2:DetachNetworkInterface"
+                  - "ec2:ModifyNetworkInterfaceAttribute"
+                  - "ec2:ResetNetworkInterfaceAttribute"
+                  - "ec2:CreateNetworkInterfacePermission"
+                  - "ec2:DeleteNetworkInterface"
+                  - "ec2:DeleteNetworkInterfacePermission"
+                  - "ec2:AssociateAddress"
+                  - "ec2:DescribeAddresses"
+                  - "ec2:RevokeSecurityGroupIngress"
+                  - "ec2:AuthorizeSecurityGroupIngress"
+                Resource: "*"
+        - PolicyName: log-access
+          # Gives access to Create log group & stream if not exists
+          # and push new logs if already not there
+          # Restricted to only create it's own group and streams inside
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              -
+                Effect: Allow
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:GetLogEvents"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogGroups"
+                  - "logs:DescribeLogStreams"
+                  - "logs:PutRetentionPolicy"
+                  - "logs:PutMetricFilter"
+                  - "logs:CreateLogGroup"
+                Resource: "*"
+        - PolicyName: ssm-access
+          # Needed for SSM Agent
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ssm:DescribeParameters"
+                  - "ssm:GetParameters"
+                  - "ssm:GetParameter"
+                  - "ssm:GetParametersByPath"
+                Resource: "*"
+  Function:
+    Type: AWS::Lambda::Function
+    DependsOn: FunctionRole
+    Properties:
+      FunctionName: !Ref 'FunctionName'
+      Description:
+        This performance a simple http/https request
+        to given url - great to do simple test
+        of loadbalancers, internal services, etc
+      Environment:
+        URL: https://google.com/
+      Handler: handler.handler
+      Runtime: python3.7
+      Timeout: 30
+      Role: !GetAtt FunctionRole.Arn
+      Code:
+        ZipFile:
+          Fn::Join:
+            - '
+              
+              '
+            -
+              - "#!/usr/bin/env python3.7"
+              - ""
+              - "import os"
+              - "import json"
+              - "import urllib.request as req"
+              - "import urllib.error"
+              - ""
+              - "def handler(event, context):"
+              - " url_to_open = None"
+              - " if 'url' in event.keys():"
+              - "   url_to_open = event.get('url',None)"
+              - " else:"
+              - "   url_to_open = os.environ.get('URL', None)"
+              - " "
+              - " if 'http' in url_to_open:"
+              - "   try:"
+              - "     con = req.urlopen(url_to_open)"
+              - "     print('Response code:', con.getcode())"
+              - "     print('Response info:', con.info())"
+              - "   except urllib.error as e:"
+              - "     printe('Response error:', e)"
+              - "   except:"
+              - "     raise"
+              - " return {'statusCode': 200, 'body': json.dumps('done')}"
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        SubnetIds:
+          - !Ref SubnetId
+              
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lambda-${FunctionName}
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  FunctionCloudwatchEventPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt
+        - Function
+        - Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      # Give any cloudwatch event access to invoke this lambda
+      SourceArn: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/*"
+
+Outputs:
+  Function:
+    Description: The arn of the function
+    Value: !GetAtt Function.Arn
