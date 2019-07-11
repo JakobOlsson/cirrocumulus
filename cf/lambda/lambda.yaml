@@ -121,7 +121,7 @@ Resources:
         of loadbalancers, internal services, etc
       Environment:
         URL: https://google.com/
-      Handler: handler.handler
+      Handler: index.handler
       Runtime: python3.7
       Timeout: 30
       Role: !GetAtt FunctionRole.Arn
